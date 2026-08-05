@@ -6,6 +6,10 @@
 
 ภายในเว็บไซต์ประกอบด้วยกำหนดการ รายละเอียดและกติกาการแข่งขัน 11 รายการ ระบบค้นหาและกรองตามระดับชั้น ลิงก์สมัคร และไฟล์กติกาฉบับเต็ม
 
+## เว็บไซต์ที่เผยแพร่แล้ว
+
+https://panyasitta.github.io/science-week-2569/
+
 ## เปิดใช้งานในเครื่อง
 
 ต้องใช้ Node.js 22 ขึ้นไป
@@ -23,7 +27,7 @@ npm run build:github-pages
 
 ไฟล์ static จะถูกสร้างไว้ในโฟลเดอร์ `github-dist/` โดย workflow ที่ `.github/workflows/deploy-pages.yml` จะสร้างและเผยแพร่เว็บไซต์อัตโนมัติเมื่อมีการอัปเดต branch `main`
 
-เมื่อตั้งค่า repository ครั้งแรก ให้เปิด `Settings` → `Pages` และเลือก `Source: GitHub Actions`
+GitHub Pages ของโครงการนี้ใช้ GitHub Actions เป็นแหล่งเผยแพร่
 
 ## โครงสร้างสำคัญ
 
