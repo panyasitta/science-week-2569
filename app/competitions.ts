@@ -302,7 +302,7 @@ export const competitions: Competition[] = [
     time: "12.30–13.15 น.",
     place: "สนามฟุตบอล",
     team: "ทีมละ 3 คน",
-    form: "https://docs.google.com/forms/d/e/1FAIpQLSckpFD3Nx8aroS0VVYqZA8K03KNn4kCyqQdD8ouQYTgReJ5VQ/viewform?usp=preview",
+    form: "https://docs.google.com/forms/d/e/1FAIpQLSdsVAqxd7WHC2BGp9od4pEWNOeWoeWEL_nFPcvJGzPSW8DT5g/viewform?usp=preview",
     accent: "violet",
     glyph: "H₂O",
     tags: ["จรวด", "แรงดัน", "โพรเจกไทล์", "ยิงแม่น"],
