@@ -262,6 +262,7 @@ button, input { font: inherit; }
 .modal-level { margin: 0 0 10px; color: var(--accent); font-size: .7rem; font-weight: 700; letter-spacing: .04em; }.modal-header h2 { max-width: 760px; margin: 0; font: 600 clamp(2rem,4vw,3.6rem)/1.13 "Pridi",serif; letter-spacing: -.025em; }.modal-header div > p:last-child { margin: 12px 0 0; color: rgba(255,255,255,.55); }
 .modal-close { flex: 0 0 auto; width: 44px; height: 44px; border: 1px solid rgba(255,255,255,.25); border-radius: 50%; color: white; background: rgba(255,255,255,.05); font: 300 1.8rem/1 sans-serif; cursor: pointer; }
 .modal-summary { display: grid; grid-template-columns: repeat(4,1fr); background: white; border-bottom: 1px solid #ded6c9; }
+.modal-summary.has-level { grid-template-columns: repeat(5,1fr); }
 .modal-summary div { min-height: 92px; padding: 20px 24px; border-right: 1px solid #ded6c9; }.modal-summary div:last-child { border-right: 0; }.modal-summary span, .modal-summary strong { display:block; }.modal-summary span { color: #958873; font-size: .62rem; }.modal-summary strong { margin-top: 6px; font-size: .78rem; }
 .deadline-note { padding: 15px 64px; display: flex; align-items: center; gap: 14px; color: #7b530a; background: #fff0c7; border-bottom: 1px solid #e6cc8a; }.deadline-note span { font-size: .65rem; }.deadline-note strong { font-size: .82rem; }
 .modal-body { padding: 50px 64px 60px; display: grid; grid-template-columns: minmax(0,1fr) minmax(300px,.65fr); gap: 60px; }
@@ -342,7 +343,7 @@ footer { background: #050c1b; color: white; border-top: 1px solid rgba(255,255,2
   .modal-header { min-height: 210px; padding: 38px 24px 32px; }
   .modal-header h2 { font-size: 2rem; }
   .modal-close { width: 40px; height: 40px; }
-  .modal-summary { grid-template-columns: repeat(2,1fr); }
+  .modal-summary, .modal-summary.has-level { grid-template-columns: repeat(2,1fr); }
   .modal-summary div { min-height: 82px; padding: 16px; border-bottom: 1px solid #ded6c9; }
   .modal-summary div:nth-child(2n) { border-right: 0; }
   .deadline-note { padding: 13px 24px; }

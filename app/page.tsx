@@ -71,11 +71,12 @@ function RulesModal({ item, onClose }: { item: Competition; onClose: () => void 
           <button ref={closeRef} className="modal-close" type="button" onClick={onClose} aria-label="ปิดรายละเอียดกติกา">×</button>
         </header>
 
-        <div className="modal-summary">
+        <div className={`modal-summary${item.summaryLevel ? " has-level" : ""}`}>
           <div><span>วันที่</span><strong>{item.date}</strong></div>
           <div><span>เวลา</span><strong>{item.time}</strong></div>
           <div><span>สถานที่</span><strong>{item.place}</strong></div>
-          <div><span>ผู้เข้าแข่งขัน</span><strong>{item.team}</strong></div>
+          {item.summaryLevel && <div><span>ระดับชั้น</span><strong>{item.summaryLevel}</strong></div>}
+          <div><span>{item.teamLabel ?? "ผู้เข้าแข่งขัน"}</span><strong>{item.team}</strong></div>
         </div>
 
         {item.deadline && (
