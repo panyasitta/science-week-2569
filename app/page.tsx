@@ -2,11 +2,19 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { competitions, scheduleDays, type Competition, type CompetitionLevel } from "./competitions";
+import { participantDataUpdated, participantDirectory } from "./participants";
 
 type FilterValue = "all" | CompetitionLevel;
+type ModalView = "participants" | "rules";
 
 const staticBase = ((import.meta as ImportMeta & { env?: { BASE_URL?: string } }).env?.BASE_URL ?? "/").replace(/\/?$/, "/");
 const publicAsset = (path: string) => `${staticBase}${path.replace(/^\/+/, "")}`;
+
+const totalRegisteredTeams = Object.values(participantDirectory).reduce((total, activity) => total + activity.teams.length, 0);
+const totalRegisteredParticipants = Object.values(participantDirectory).reduce(
+  (total, activity) => total + activity.teams.reduce((activityTotal, team) => activityTotal + team.members.length, 0),
+  0,
+);
 
 const filters: { value: FilterValue; label: string; helper: string }[] = [
   { value: "all", label: "ทั้งหมด", helper: "11 รายการ" },
@@ -51,8 +59,34 @@ function Countdown() {
   );
 }
 
-function RulesModal({ item, onClose }: { item: Competition; onClose: () => void }) {
+function CompetitionModal({ item, initialView, onClose }: { item: Competition; initialView: ModalView; onClose: () => void }) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const [view, setView] = useState<ModalView>(initialView);
+  const [participantQuery, setParticipantQuery] = useState("");
+  const participantSet = participantDirectory[item.id];
+
+  const indexedTeams = useMemo(() => {
+    let participantNo = 1;
+    return (participantSet?.teams ?? []).map((team) => ({
+      ...team,
+      members: team.members.map((member) => ({ ...member, participantNo: participantNo++ })),
+    }));
+  }, [participantSet]);
+
+  const filteredTeams = useMemo(() => {
+    const normalized = participantQuery.trim().toLocaleLowerCase("th");
+    if (!normalized) return indexedTeams;
+    return indexedTeams.filter((team) => {
+      const haystack = [team.team, team.title, ...team.members.flatMap((member) => [member.name, member.room, member.role])]
+        .filter(Boolean)
+        .join(" ")
+        .toLocaleLowerCase("th");
+      return haystack.includes(normalized);
+    });
+  }, [indexedTeams, participantQuery]);
+
+  const totalPeople = indexedTeams.reduce((total, team) => total + team.members.length, 0);
+  const filteredPeople = filteredTeams.reduce((total, team) => total + team.members.length, 0);
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -71,73 +105,110 @@ function RulesModal({ item, onClose }: { item: Competition; onClose: () => void 
           <button ref={closeRef} className="modal-close" type="button" onClick={onClose} aria-label="ปิดรายละเอียดกติกา">×</button>
         </header>
 
-        <div className={`modal-summary${item.summaryLevel ? " has-level" : ""}`}>
+        <div className="modal-summary">
           <div><span>วันที่</span><strong>{item.date}</strong></div>
           <div><span>เวลา</span><strong>{item.time}</strong></div>
-          <div><span>สถานที่</span><strong>{item.place}</strong></div>
-          {item.summaryLevel && <div><span>ระดับชั้น</span><strong>{item.summaryLevel}</strong></div>}
-          <div><span>{item.teamLabel ?? "ผู้เข้าแข่งขัน"}</span><strong>{item.team}</strong></div>
+          <div><span>ทีม/ผลงาน</span><strong>{indexedTeams.length} ทีม</strong></div>
+          <div><span>ผู้เข้าแข่งขัน</span><strong>{totalPeople} คน</strong></div>
         </div>
 
-        {item.deadline && (
-          <div className="deadline-note"><span>สมัครภายใน</span><strong>{item.deadline}</strong></div>
+        <div className="modal-tabs" role="tablist" aria-label="ข้อมูลกิจกรรม">
+          <button type="button" role="tab" aria-selected={view === "participants"} onClick={() => setView("participants")}>
+            <span>รายชื่อผู้เข้าแข่งขัน</span><small>{totalPeople} คน</small>
+          </button>
+          <button type="button" role="tab" aria-selected={view === "rules"} onClick={() => setView("rules")}>
+            <span>กติกากิจกรรม</span><small>รายละเอียดและเกณฑ์คะแนน</small>
+          </button>
+        </div>
+
+        {view === "participants" ? (
+          <section className="participant-panel" role="tabpanel" aria-label={`รายชื่อผู้เข้าแข่งขัน ${item.title}`}>
+            <div className="participant-panel-heading">
+              <div>
+                <p>ประกาศรายชื่อผู้เข้าแข่งขัน</p>
+                <h3>{indexedTeams.length} ทีม/ผลงาน · {totalPeople} คน</h3>
+                <small>ข้อมูล ณ วันที่ {participantDataUpdated}</small>
+              </div>
+              <label className="participant-search">
+                <span aria-hidden="true">⌕</span>
+                <input value={participantQuery} onChange={(event) => setParticipantQuery(event.target.value)} type="search" placeholder="ค้นหาชื่อ ทีม หรือห้อง" aria-label="ค้นหาในรายชื่อกิจกรรมนี้" />
+                {participantQuery && <button type="button" onClick={() => setParticipantQuery("")} aria-label="ล้างคำค้นหา">×</button>}
+              </label>
+            </div>
+
+            <div className="participant-result" aria-live="polite">
+              <strong>{filteredTeams.length}</strong> ทีม/ผลงาน · <strong>{filteredPeople}</strong> รายชื่อ
+            </div>
+
+            {filteredTeams.length > 0 ? (
+              <div className="participant-table-wrap">
+                <table className="participant-table">
+                  <thead>
+                    <tr><th>ลำดับ</th><th>ทีม/หมายเลขทีม</th><th>ชื่อ–นามสกุลผู้เข้าแข่งขัน</th><th>ชั้น/ห้อง</th></tr>
+                  </thead>
+                  <tbody>
+                    {filteredTeams.map((team) => team.members.map((member, memberIndex) => (
+                      <tr key={`${team.team}-${member.participantNo}-${member.name}`}>
+                        <td className="participant-number">{member.participantNo}</td>
+                        {memberIndex === 0 && (
+                          <td className="participant-team" rowSpan={team.members.length}>
+                            <strong>{/^\d+$/.test(team.team) ? `ทีม ${team.team}` : team.team || "—"}</strong>
+                            {team.title && <small>{team.title}</small>}
+                          </td>
+                        )}
+                        <td><span className="participant-name">{member.name}</span>{member.role && <small className="participant-role">{member.role}</small>}</td>
+                        <td className="participant-room">{member.room || "—"}</td>
+                      </tr>
+                    ))) }
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="participant-empty"><strong>ไม่พบรายชื่อที่ค้นหา</strong><p>ลองค้นด้วยชื่อจริง ชื่อทีม หรือเลขห้อง</p><button type="button" onClick={() => setParticipantQuery("")}>แสดงรายชื่อทั้งหมด</button></div>
+            )}
+          </section>
+        ) : (
+          <>
+            {item.deadline && <div className="deadline-note"><span>สมัครภายใน</span><strong>{item.deadline}</strong></div>}
+            <div className="modal-body" role="tabpanel" aria-label={`กติกา ${item.title}`}>
+              <div className="rules-column">
+                {item.sections.map((section, sectionIndex) => (
+                  <section className="rule-section" key={section.title}>
+                    <div className="rule-heading"><span>{String(sectionIndex + 1).padStart(2, "0")}</span><h3>{section.title}</h3></div>
+                    <ul>{section.items.map((rule) => <li key={rule}>{rule}</li>)}</ul>
+                  </section>
+                ))}
+              </div>
+
+              {(item.scoreRows || item.timePenalties || item.note || item.resources) && (
+                <aside className="modal-aside">
+                  {item.note && <div className="important-note"><span aria-hidden="true">!</span><p>{item.note}</p></div>}
+                  {item.scoreRows && (
+                    <section className="score-panel">
+                      <div className="score-title"><h3>เกณฑ์การให้คะแนน</h3><strong>{item.scoreTotal}</strong></div>
+                      <div className="score-table" role="table" aria-label="เกณฑ์การให้คะแนน">
+                        {item.scoreRows.map((row, index) => (
+                          <div className="score-row" role="row" key={row.label}><span role="cell">{String(index + 1).padStart(2, "0")}</span><p role="cell">{row.label}</p><strong role="cell">{row.score}</strong></div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+                  {item.timePenalties && (
+                    <section className="penalty-panel"><h3>การหักคะแนนด้านเวลา</h3>{item.timePenalties.map((row) => <div key={row.label}><span>{row.label}</span><strong>{row.score}</strong></div>)}</section>
+                  )}
+                  {item.resources && (
+                    <section className="resource-panel"><h3>สื่อประกอบ</h3>{item.resources.map((resource) => <a key={resource.url} href={resource.url} target="_blank" rel="noreferrer">{resource.label}<span>↗</span></a>)}</section>
+                  )}
+                </aside>
+              )}
+            </div>
+          </>
         )}
 
-        <div className="modal-body">
-          <div className="rules-column">
-            {item.sections.map((section, sectionIndex) => (
-              <section className="rule-section" key={section.title}>
-                <div className="rule-heading"><span>{String(sectionIndex + 1).padStart(2, "0")}</span><h3>{section.title}</h3></div>
-                <ul>
-                  {section.items.map((rule) => <li key={rule}>{rule}</li>)}
-                </ul>
-              </section>
-            ))}
-          </div>
-
-          {(item.scoreRows || item.timePenalties || item.note || item.resources) && (
-            <aside className="modal-aside">
-              {item.note && <div className="important-note"><span aria-hidden="true">!</span><p>{item.note}</p></div>}
-
-              {item.scoreRows && (
-                <section className="score-panel">
-                  <div className="score-title"><h3>เกณฑ์การให้คะแนน</h3><strong>{item.scoreTotal}</strong></div>
-                  <div className="score-table" role="table" aria-label="เกณฑ์การให้คะแนน">
-                    {item.scoreRows.map((row, index) => (
-                      <div className="score-row" role="row" key={row.label}>
-                        <span role="cell">{String(index + 1).padStart(2, "0")}</span>
-                        <p role="cell">{row.label}</p>
-                        <strong role="cell">{row.score}</strong>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {item.timePenalties && (
-                <section className="penalty-panel">
-                  <h3>การหักคะแนนด้านเวลา</h3>
-                  {item.timePenalties.map((row) => (
-                    <div key={row.label}><span>{row.label}</span><strong>{row.score}</strong></div>
-                  ))}
-                </section>
-              )}
-
-              {item.resources && (
-                <section className="resource-panel">
-                  <h3>สื่อประกอบ</h3>
-                  {item.resources.map((resource) => (
-                    <a key={resource.url} href={resource.url} target="_blank" rel="noreferrer">{resource.label}<span>↗</span></a>
-                  ))}
-                </section>
-              )}
-            </aside>
-          )}
-        </div>
-
         <footer className="modal-footer">
-          <p>อ่านกติกาให้ครบถ้วนก่อนส่งแบบฟอร์มสมัคร</p>
+          <p>{view === "participants" ? `รายชื่อประกาศ ณ วันที่ ${participantDataUpdated}` : "อ่านกติกาให้ครบถ้วนก่อนเข้าร่วมการแข่งขัน"}</p>
           <div>
+            <button className="button button-ghost-dark modal-switch" type="button" onClick={() => setView(view === "participants" ? "rules" : "participants")}>{view === "participants" ? "ดูกติกา" : "ดูรายชื่อ"} <span>↔</span></button>
             <a className="button button-ghost-dark" href={publicAsset("downloads/science-competition-rules-2569.docx")} download>ดาวน์โหลดกติกา <span>↓</span></a>
             <a className="button button-primary" href={item.form} target="_blank" rel="noreferrer">สมัครรายการนี้ <span>↗</span></a>
           </div>
@@ -151,7 +222,7 @@ export default function Home() {
   const [activeFilter, setActiveFilter] = useState<FilterValue>("all");
   const [showAllLevelsOnly, setShowAllLevelsOnly] = useState(false);
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<Competition | null>(null);
+  const [selected, setSelected] = useState<{ item: Competition; view: ModalView } | null>(null);
 
   useEffect(() => {
     if (!selected) return;
@@ -169,7 +240,12 @@ export default function Home() {
     const normalized = query.trim().toLocaleLowerCase("th");
     return competitions.filter((item) => {
       const matchesLevel = showAllLevelsOnly ? item.level === "all" : activeFilter === "all" || item.level === activeFilter;
-      const haystack = [item.title, item.shortTitle, item.subtitle, item.description, item.levelLabel, item.place, ...item.tags].join(" ").toLocaleLowerCase("th");
+      const participantTerms = participantDirectory[item.id]?.teams.flatMap((team) => [
+        team.team,
+        team.title,
+        ...team.members.flatMap((member) => [member.name, member.room, member.role]),
+      ]).filter(Boolean).join(" ") ?? "";
+      const haystack = [item.title, item.shortTitle, item.subtitle, item.description, item.levelLabel, item.place, ...item.tags, participantTerms].join(" ").toLocaleLowerCase("th");
       return matchesLevel && (!normalized || haystack.includes(normalized));
     });
   }, [activeFilter, query, showAllLevelsOnly]);
@@ -190,7 +266,7 @@ export default function Home() {
           <a href="#schedule">กำหนดการ</a>
           <a href="#competitions">การแข่งขัน</a>
           <a href="#resources">เอกสาร</a>
-          <a className="nav-cta" href="#competitions">สมัครแข่งขัน <span>↗</span></a>
+          <a className="nav-cta" href="#competitions">ดูรายชื่อ <span>↓</span></a>
         </div>
       </nav>
 
@@ -210,7 +286,7 @@ export default function Home() {
             <div className="hero-meta" aria-label="ข้อมูลสำคัญของกิจกรรม">
               <div><strong>11</strong><span>รายการแข่งขัน</span></div>
               <div><strong>20–31</strong><span>สิงหาคม 2569</span></div>
-              <div><strong>ม.1–6</strong><span>ร่วมถอดรหัส</span></div>
+              <div><strong>{totalRegisteredParticipants}</strong><span>รายชื่อผู้เข้าแข่งขัน</span></div>
             </div>
           </div>
           <div className="hero-art" aria-hidden="true"><div className="hero-art-image" /><span className="spark spark-a">✦</span><span className="spark spark-b">✧</span><span className="spark spark-c">✦</span></div>
@@ -220,8 +296,8 @@ export default function Home() {
 
       <section className="deadline-bar" aria-label="กำหนดเวลาสำคัญ">
         <div className="shell deadline-inner">
-          <div className="deadline-copy"><span className="pulse-dot" /><div><strong>กำหนดเวลาสำคัญ</strong><p>ชุดรีไซเคิลสมัครภายใน 10 ส.ค. · Science Show สมัครภายใน 14 ส.ค. 2569</p></div></div>
-          <a href="#competitions">ไปยังรายการสมัคร <span>→</span></a>
+          <div className="deadline-copy"><span className="pulse-dot" /><div><strong>ประกาศรายชื่อผู้เข้าแข่งขันแล้ว</strong><p>ครบ 11 กิจกรรม · {totalRegisteredTeams} ทีม/ผลงาน · {totalRegisteredParticipants} คน · ข้อมูล ณ วันที่ {participantDataUpdated}</p></div></div>
+          <a href="#competitions">ตรวจสอบรายชื่อ <span>→</span></a>
         </div>
       </section>
 
@@ -249,7 +325,7 @@ export default function Home() {
         <div className="shell">
           <div className="section-heading competition-heading">
             <div><p className="eyebrow light"><span /> CHOOSE YOUR QUEST</p><h2>เลือกภารกิจที่ใช่<br /><em>แล้วปล่อยพลังของทีม</em></h2></div>
-            <p className="section-intro">ค้นหาและกรองรายการตามระดับชั้น กด “อ่านกติกา” เพื่อดูข้อกำหนด เกณฑ์คะแนน และลิงก์สมัครอย่างครบถ้วน</p>
+            <p className="section-intro">ค้นหาด้วยชื่อกิจกรรม ชื่อทีม หรือชื่อผู้สมัคร แล้วกด “รายชื่อผู้เข้าแข่งขัน” เพื่อดูตารางแยกทีมและชั้น/ห้องของแต่ละกิจกรรม</p>
           </div>
 
           <div className="competition-tools">
@@ -266,7 +342,7 @@ export default function Home() {
             </div>
             <label className="search-box">
               <span aria-hidden="true">⌕</span>
-              <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="ค้นหา เช่น จรวด, วาดภาพ, ม.ปลาย" aria-label="ค้นหารายการแข่งขัน" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="ค้นหากิจกรรม ทีม หรือชื่อผู้สมัคร" aria-label="ค้นหารายการแข่งขันหรือชื่อผู้สมัคร" />
               {query && <button type="button" aria-label="ล้างคำค้นหา" onClick={() => setQuery("")}>×</button>}
             </label>
           </div>
@@ -275,7 +351,10 @@ export default function Home() {
 
           {filteredCompetitions.length > 0 ? (
             <div className="competition-grid full-grid">
-              {filteredCompetitions.map((item) => (
+              {filteredCompetitions.map((item) => {
+                const activityParticipants = participantDirectory[item.id];
+                const activityPeople = activityParticipants?.teams.reduce((total, team) => total + team.members.length, 0) ?? 0;
+                return (
                 <article className={`competition-card ${item.accent}`} key={item.id} data-competition={item.id}>
                   <div className="card-topline"><span>{String(item.order).padStart(2, "0")}</span><i /><small>{item.levelShort}</small></div>
                   <div className="card-symbol" aria-hidden="true"><span>{item.glyph}</span></div>
@@ -286,14 +365,17 @@ export default function Home() {
                   <dl className="card-facts">
                     <div><dt>เวลา</dt><dd>{item.time}</dd></div>
                     <div><dt>สถานที่</dt><dd>{item.place}</dd></div>
+                    <div className="participant-fact"><dt>รายชื่อ</dt><dd>{activityParticipants?.teams.length ?? 0} ทีม · {activityPeople} คน</dd></div>
                     {item.deadline && <div className="deadline-fact"><dt>สมัครภายใน</dt><dd>{item.deadline}</dd></div>}
                   </dl>
-                  <div className="card-actions">
-                    <button type="button" onClick={() => setSelected(item)}>อ่านกติกา <span>＋</span></button>
+                  <div className="card-actions card-actions-with-list">
+                    <button className="participant-button" type="button" onClick={() => setSelected({ item, view: "participants" })}>รายชื่อผู้เข้าแข่งขัน <span>→</span></button>
+                    <button type="button" onClick={() => setSelected({ item, view: "rules" })} aria-label={`อ่านกติกา ${item.shortTitle}`}>กติกา <span>＋</span></button>
                     <a href={item.form} target="_blank" rel="noreferrer" aria-label={`สมัคร ${item.shortTitle}`}>สมัคร <span>↗</span></a>
                   </div>
                 </article>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="empty-state"><span aria-hidden="true">∅</span><h3>ยังไม่พบภารกิจที่ตรงกัน</h3><p>ลองเปลี่ยนระดับชั้นหรือใช้คำค้นที่สั้นลง</p><button type="button" onClick={() => { setQuery(""); chooseFilter("all"); }}>แสดงรายการทั้งหมด</button></div>
@@ -333,7 +415,8 @@ export default function Home() {
         </div>
       </footer>
 
-      {selected && <RulesModal item={selected} onClose={() => setSelected(null)} />}
+      {selected && <CompetitionModal item={selected.item} initialView={selected.view} onClose={() => setSelected(null)} />}
     </main>
   );
 }
+
