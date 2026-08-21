@@ -4,6 +4,7 @@ import {
   getActivityState,
   listActivitySummaries,
   listAuditLogs,
+  listCertificates,
   listDocuments,
   publishActivity,
   restorePublishedDraft,
@@ -38,6 +39,7 @@ export async function GET(request: NextRequest) {
       judge,
       state: await getActivityState(activityId),
       documents: await listDocuments(activityId),
+      certificates: await listCertificates(activityId),
     });
   } catch (error) {
     return errorResponse(error);
