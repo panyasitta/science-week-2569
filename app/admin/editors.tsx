@@ -10,6 +10,8 @@ const CUSTOM_OPTION = "__custom__";
 const AWARD_OPTIONS = ["ชนะเลิศ", "รองชนะเลิศ", "รองชนะเลิศอันดับ 1", "รองชนะเลิศอันดับ 2", "ชมเชย", "เข้าร่วม", "รางวัลพิเศษ"];
 const PLACE_OPTIONS = ["ห้องประชุมสะเลียม", "ห้องประชุมปัญญาภิรมย์", "ห้อง 626", "สนามฟุตบอล", "ถนนบริเวณรอบอาคาร 6"];
 const TEAM_FORMAT_OPTIONS = ["รายบุคคล", "ทีมละ 2 คน", "ทีมละ 3 คน", "ทีมละ 4 คน", "ทีมละ 5 คน", "อย่างน้อยห้องละ 1 ชุด"];
+const THAI_MONTHS = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+const THAI_MONTHS_SHORT = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 const STANDARD_ROOM_OPTIONS = [
   ...Array.from({ length: 6 }, (_, gradeIndex) => Array.from({ length: 7 }, (_, roomIndex) => `ม.${gradeIndex + 1}/${roomIndex + 1}`)).flat(),
   "ม.1 ห้อง SM1/1",
@@ -57,28 +59,110 @@ function roomOptions(draft: ActivityPayload): string[] {
   return [...new Set([...STANDARD_ROOM_OPTIONS, ...existingRooms])];
 }
 
-function toDateTimeLocal(value: string): string {
-  return value.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)?.[0] ?? "";
+function dateParts(value: string): [number, number, number] | null {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
 }
 
-function fromDateTimeLocal(value: string): string {
-  return value ? `${value}:00+07:00` : "";
+function formatThaiDate(value: string, short = false): string {
+  const parts = dateParts(value);
+  if (!parts) return "";
+  const [year, month, day] = parts;
+  return short ? `${day} ${THAI_MONTHS_SHORT[month - 1]}` : `${day} ${THAI_MONTHS[month - 1]} ${year + 543}`;
+}
+
+function formatThaiDateRange(start: string, end: string, short = false): string {
+  if (!end || end === start) return formatThaiDate(start, short);
+  const startParts = dateParts(start);
+  const endParts = dateParts(end);
+  if (!startParts || !endParts) return formatThaiDate(start, short);
+  const [startYear, startMonth, startDay] = startParts;
+  const [endYear, endMonth, endDay] = endParts;
+  const months = short ? THAI_MONTHS_SHORT : THAI_MONTHS;
+  if (startYear === endYear && startMonth === endMonth) {
+    return short ? `${startDay}–${endDay} ${months[startMonth - 1]}` : `${startDay}–${endDay} ${months[startMonth - 1]} ${startYear + 543}`;
+  }
+  if (short) return `${startDay} ${months[startMonth - 1]}–${endDay} ${months[endMonth - 1]}`;
+  if (startYear === endYear) return `${startDay} ${months[startMonth - 1]}–${endDay} ${months[endMonth - 1]} ${startYear + 543}`;
+  return `${startDay} ${months[startMonth - 1]} ${startYear + 543}–${endDay} ${months[endMonth - 1]} ${endYear + 543}`;
+}
+
+function parseThaiDate(value: string): string {
+  const match = value.match(/^(\d{1,2})\s+([^\s]+)\s+(\d{4})$/);
+  if (!match) return "";
+  const monthIndex = [...THAI_MONTHS, ...THAI_MONTHS_SHORT].findIndex((month) => month === match[2]) % 12;
+  if (monthIndex < 0) return "";
+  const year = Number(match[3]) - 543;
+  return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(Number(match[1])).padStart(2, "0")}`;
+}
+
+function scheduleStartDate(sortDate: string): string {
+  return sortDate.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? "";
+}
+
+function scheduleEndDate(dateLabel: string): string {
+  const sameMonth = dateLabel.match(/^\d{1,2}\s*[–-]\s*(\d{1,2})\s+([^\s]+)\s+(\d{4})$/);
+  if (sameMonth) return parseThaiDate(`${sameMonth[1]} ${sameMonth[2]} ${sameMonth[3]}`);
+  const crossMonth = dateLabel.match(/^\d{1,2}\s+([^\s]+)(?:\s+(\d{4}))?\s*[–-]\s*(\d{1,2})\s+([^\s]+)\s+(\d{4})$/);
+  if (crossMonth) return parseThaiDate(`${crossMonth[3]} ${crossMonth[4]} ${crossMonth[5]}`);
+  return "";
+}
+
+function scheduleStartTime(sortDate: string): string {
+  return sortDate.match(/T(\d{2}:\d{2})/)?.[1] ?? "";
+}
+
+function scheduleEndTime(timeLabel: string): string {
+  const match = timeLabel.match(/[–-](\d{2})[.:](\d{2})/);
+  return match ? `${match[1]}:${match[2]}` : "";
+}
+
+function timeMode(timeLabel: string): "single" | "range" | "open" {
+  if (timeLabel.includes("เป็นต้นไป")) return "open";
+  return /[–-]\d{2}[.:]\d{2}/.test(timeLabel) ? "range" : "single";
+}
+
+function formatThaiTime(start: string, end: string, mode: "single" | "range" | "open"): string {
+  if (!start) return "";
+  const startLabel = start.replace(":", ".");
+  if (mode === "open") return `${startLabel} น. เป็นต้นไป`;
+  if (mode === "range" && end) return `${startLabel}–${end.replace(":", ".")} น.`;
+  return `${startLabel} น.`;
 }
 
 export function ScheduleEditor({ draft, change }: { draft: ActivityPayload; change: DraftChange }) {
   const item = draft.competition;
   const set = (key: keyof typeof item, value: string) => change((copy) => { (copy.competition as unknown as Record<string, unknown>)[key] = value || undefined; });
+  const startDate = scheduleStartDate(item.sortDate);
+  const endDate = scheduleEndDate(item.date);
+  const startTime = scheduleStartTime(item.sortDate);
+  const endTime = scheduleEndTime(item.time);
+  const mode = timeMode(item.time);
+  const setScheduleDate = (nextStart: string, nextEnd: string) => change((copy) => {
+    const safeEnd = nextEnd && nextEnd >= nextStart ? nextEnd : "";
+    const currentTime = scheduleStartTime(copy.competition.sortDate) || "00:00";
+    copy.competition.date = formatThaiDateRange(nextStart, safeEnd);
+    copy.competition.dateShort = formatThaiDateRange(nextStart, safeEnd, true);
+    copy.competition.sortDate = nextStart ? `${nextStart}T${currentTime}:00+07:00` : "";
+  });
+  const setScheduleTime = (nextStart: string, nextEnd: string, nextMode: "single" | "range" | "open") => change((copy) => {
+    const currentDate = scheduleStartDate(copy.competition.sortDate);
+    const safeEnd = nextMode === "range" ? nextEnd || nextStart : "";
+    copy.competition.time = formatThaiTime(nextStart, safeEnd, nextMode);
+    copy.competition.sortDate = currentDate && nextStart ? `${currentDate}T${nextStart}:00+07:00` : "";
+  });
   return (
     <section className="admin-editor-section">
       <div className="editor-heading"><div><p>กำหนดการและสถานที่</p><h2>ข้อมูลวันแข่งขัน</h2></div><span>แสดงบนหน้าแรก การ์ดกิจกรรม และหน้ารายละเอียด</span></div>
       <div className="admin-field-grid">
-        <Field label="วันที่แข่งขัน" wide><input value={item.date} onChange={(event) => set("date", event.target.value)} placeholder="เช่น 31 สิงหาคม 2569" /></Field>
-        <Field label="วันที่แบบย่อ"><input value={item.dateShort} onChange={(event) => set("dateShort", event.target.value)} placeholder="31 ส.ค." /></Field>
-        <Field label="วัน–เวลาสำหรับเรียงลำดับ" hint="ใช้สำหรับจัดลำดับกิจกรรมอัตโนมัติ"><input type="datetime-local" value={toDateTimeLocal(item.sortDate)} onChange={(event) => set("sortDate", fromDateTimeLocal(event.target.value))} /></Field>
-        <Field label="เวลาแข่งขัน"><input value={item.time} onChange={(event) => set("time", event.target.value)} placeholder="12.30 น." /></Field>
+        <Field label="วันที่เริ่มแข่งขัน" hint={`แสดงผลบนเว็บไซต์: ${item.date || "—"}`}><input type="date" value={startDate} onChange={(event) => setScheduleDate(event.target.value, endDate)} /></Field>
+        <Field label="วันที่สิ้นสุด" hint="เว้นว่างหากแข่งขันวันเดียว"><input type="date" min={startDate || undefined} value={endDate} onChange={(event) => setScheduleDate(startDate, event.target.value)} /></Field>
+        <Field label="เวลาเริ่ม" hint={`แสดงผลบนเว็บไซต์: ${item.time || "—"}`}><input type="time" value={startTime} onChange={(event) => setScheduleTime(event.target.value, endTime, mode)} /></Field>
+        <Field label="รูปแบบเวลา"><select value={mode} onChange={(event) => setScheduleTime(startTime, endTime, event.target.value as "single" | "range" | "open")}><option value="single">ระบุเวลาเดียว</option><option value="range">ระบุช่วงเวลา</option><option value="open">ตั้งแต่เวลาเริ่มต้นเป็นต้นไป</option></select></Field>
+        <Field label="เวลาสิ้นสุด" hint={mode === "range" ? "เลือกเวลาสิ้นสุด" : "ใช้เมื่อเลือกรูปแบบช่วงเวลา"}><input type="time" min={startTime || undefined} disabled={mode !== "range"} value={mode === "range" ? endTime : ""} onChange={(event) => setScheduleTime(startTime, event.target.value, "range")} /></Field>
         <Field label="สถานที่"><PresetSelect key={`${item.id}-place`} value={item.place} options={PLACE_OPTIONS} onChange={(value) => set("place", value)} placeholder="เลือกสถานที่" customLabel="สถานที่อื่น / กรอกเอง" customPlaceholder="ระบุสถานที่" /></Field>
         <Field label="รูปแบบทีม/จำนวนคน"><PresetSelect key={`${item.id}-team-format`} value={item.team} options={TEAM_FORMAT_OPTIONS} onChange={(value) => set("team", value)} placeholder="เลือกรูปแบบทีม" customLabel="รูปแบบอื่น / กรอกเอง" customPlaceholder="ระบุรูปแบบทีม/จำนวนคน" /></Field>
-        <Field label="กำหนดรับสมัคร"><input value={item.deadline ?? ""} onChange={(event) => set("deadline", event.target.value)} placeholder="เว้นว่างได้" /></Field>
+        <Field label="กำหนดรับสมัคร" hint="เว้นว่างได้"><input type="date" value={parseThaiDate(item.deadline ?? "")} onChange={(event) => set("deadline", formatThaiDate(event.target.value))} /></Field>
       </div>
     </section>
   );
@@ -162,7 +246,7 @@ export function ResultEditor({ draft, change }: { draft: ActivityPayload; change
       <div className="editor-heading"><div><p>ผลการแข่งขันและคะแนน</p><h2>{result.entries.length} รายการรางวัล</h2></div><span className={`admin-result-state ${result.status}`}>{result.status === "published" ? "ตั้งเป็นประกาศผลแล้ว" : "ยังรอประกาศผล"}</span></div>
       <div className="result-settings admin-field-grid">
         <Field label="สถานะผลการแข่งขัน"><select value={result.status} onChange={(event) => updateResult("status", event.target.value)}><option value="pending">รอประกาศผล</option><option value="published">ประกาศผลแล้ว</option></select></Field>
-        <Field label="วันที่ประกาศผล"><input value={result.announcementDate ?? ""} onChange={(event) => updateResult("announcementDate", event.target.value)} placeholder="เช่น 21 สิงหาคม 2569" /></Field>
+        <Field label="วันที่ประกาศผล"><input type="date" value={parseThaiDate(result.announcementDate ?? "")} onChange={(event) => updateResult("announcementDate", formatThaiDate(event.target.value))} /></Field>
         <Field label="หมายเหตุการประกาศ" wide><textarea value={result.note ?? ""} onChange={(event) => updateResult("note", event.target.value)} rows={2} placeholder="ข้อความเพิ่มเติม (ถ้ามี)" /></Field>
         <Field label="ลิงก์ประกาศผลฉบับเต็ม" wide><input value={result.documentUrl ?? ""} onChange={(event) => updateResult("documentUrl", event.target.value)} placeholder="https://… หรือเลือกไฟล์ในแท็บเอกสาร" /></Field>
       </div>
