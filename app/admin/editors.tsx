@@ -18,6 +18,8 @@ const STANDARD_ROOM_OPTIONS = [
   "ม.1 ห้อง SM1/2",
   "ม.2 ห้อง SM2",
   "ม.3 ห้อง SM3",
+  "ม.5 ห้อง SM5",
+  "ม.6 ห้อง SM6",
 ];
 
 function Field({ label, hint, children, wide = false }: { label: string; hint?: string; children: ReactNode; wide?: boolean }) {
