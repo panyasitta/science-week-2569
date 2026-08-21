@@ -473,7 +473,7 @@ export default function Home() {
       <section className="results-section section" id="results">
         <div className="shell">
           <div className="section-heading results-heading">
-            <div><p className="eyebrow dark"><span /> OFFICIAL RESULTS</p><h2>ประกาศผลการแข่งขัน<br /><em>ทีละกิจกรรม</em></h2></div>
+            <div><p className="eyebrow dark"><span /> OFFICIAL RESULTS</p><h2>ประกาศผลการแข่งขัน</h2></div>
             <p>ผลแต่ละรายการจะแสดงทันทีหลังผ่านการตรวจสอบและรับรองจากคณะกรรมการ โดยไม่ต้องรอให้การแข่งขันครบทุกกิจกรรม</p>
           </div>
 
