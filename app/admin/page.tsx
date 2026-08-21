@@ -4,10 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { ActivityAdminState, ActivityPayload, ActivitySummary, AuditLogEntry } from "../lib/content-model";
 import type { StoredDocument } from "../lib/activity-store";
+import type { CertificateMetadata, StoredCertificate } from "../lib/certificate-model";
+import { CertificateEditor, type CertificateUploadItem } from "./certificate-editor";
 import { DocumentEditor, ParticipantEditor, ResultEditor, RulesEditor, ScheduleEditor, type DraftChange } from "./editors";
 
 type JudgeSession = { name: string; issuedAt: number; expiresAt: number };
-type EditorTab = "results" | "participants" | "schedule" | "rules" | "documents" | "audit";
+type EditorTab = "results" | "participants" | "schedule" | "rules" | "documents" | "certificates" | "audit";
 type Notice = { tone: "success" | "error" | "info"; text: string } | null;
 
 async function responseJson<T>(response: Response): Promise<T> {
@@ -33,6 +35,7 @@ export default function AdminPage() {
   const [activityState, setActivityState] = useState<ActivityAdminState | null>(null);
   const [draft, setDraft] = useState<ActivityPayload | null>(null);
   const [documents, setDocuments] = useState<StoredDocument[]>([]);
+  const [certificates, setCertificates] = useState<StoredCertificate[]>([]);
   const [tab, setTab] = useState<EditorTab>("results");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
@@ -41,6 +44,7 @@ export default function AdminPage() {
     setSession(null);
     setActivityState(null);
     setDraft(null);
+    setCertificates([]);
     setSelectedId(null);
     setNotice({ tone: "info", text: "เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง" });
   }, []);
@@ -61,10 +65,11 @@ export default function AdminPage() {
     try {
       const response = await fetch(`/api/admin/content?activityId=${encodeURIComponent(activityId)}`, { cache: "no-store" });
       if (response.status === 401) { signOutForExpiredSession(); return; }
-      const data = await responseJson<{ state: ActivityAdminState; documents: StoredDocument[] }>(response);
+      const data = await responseJson<{ state: ActivityAdminState; documents: StoredDocument[]; certificates: StoredCertificate[] }>(response);
       setActivityState(data.state);
       setDraft(structuredClone(data.state.draft));
       setDocuments(data.documents);
+      setCertificates(data.certificates);
       setSelectedId(activityId);
       setNotice(null);
     } catch (error) {
@@ -116,7 +121,7 @@ export default function AdminPage() {
 
   const logout = async () => {
     await fetch("/api/admin/session", { method: "DELETE" });
-    setSession(null); setActivities([]); setAuditLogs([]); setActivityState(null); setDraft(null); setSelectedId(null);
+    setSession(null); setActivities([]); setAuditLogs([]); setActivityState(null); setDraft(null); setDocuments([]); setCertificates([]); setSelectedId(null);
   };
 
   const save = async (action: "draft" | "publish" | "restore") => {
@@ -163,6 +168,60 @@ export default function AdminPage() {
     finally { setBusy(false); }
   };
 
+  const uploadCertificates = async (items: CertificateUploadItem[]) => {
+    if (!selectedId || !items.length) return;
+    setBusy(true); setNotice(null);
+    try {
+      for (const item of items) {
+        const form = new FormData();
+        form.set("activityId", selectedId);
+        form.set("file", item.file);
+        form.set("recipientName", item.metadata.recipientName);
+        form.set("recipientRoom", item.metadata.recipientRoom ?? "");
+        form.set("teamName", item.metadata.teamName ?? "");
+        form.set("award", item.metadata.award ?? "");
+        form.set("status", item.metadata.status);
+        await responseJson(await fetch("/api/admin/certificates", { method: "POST", body: form }));
+      }
+      await loadActivity(selectedId);
+      setNotice({ tone: "success", text: `อัปโหลดเกียรติบัตร ${items.length} ไฟล์แล้ว${items.some((item) => item.metadata.status === "draft") ? " — ตรวจสอบก่อนเผยแพร่" : ""}` });
+    } catch (error) { setNotice({ tone: "error", text: error instanceof Error ? error.message : "อัปโหลดเกียรติบัตรไม่สำเร็จ" }); }
+    finally { setBusy(false); }
+  };
+
+  const updateCertificateRecord = async (id: string, metadata: CertificateMetadata) => {
+    if (!selectedId) return;
+    setBusy(true); setNotice(null);
+    try {
+      await responseJson(await fetch("/api/admin/certificates", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...metadata }) }));
+      await loadActivity(selectedId);
+      setNotice({ tone: "success", text: metadata.status === "published" ? "บันทึกและเผยแพร่เกียรติบัตรแล้ว" : "บันทึกข้อมูลเกียรติบัตรแล้ว" });
+    } catch (error) { setNotice({ tone: "error", text: error instanceof Error ? error.message : "บันทึกเกียรติบัตรไม่สำเร็จ" }); }
+    finally { setBusy(false); }
+  };
+
+  const deleteCertificateRecord = async (id: string) => {
+    if (!selectedId || !window.confirm("ยืนยันลบเกียรติบัตรนี้ออกจากระบบ")) return;
+    setBusy(true); setNotice(null);
+    try {
+      await responseJson(await fetch(`/api/admin/certificates?id=${encodeURIComponent(id)}`, { method: "DELETE" }));
+      await loadActivity(selectedId);
+      setNotice({ tone: "success", text: "ลบเกียรติบัตรแล้ว" });
+    } catch (error) { setNotice({ tone: "error", text: error instanceof Error ? error.message : "ลบเกียรติบัตรไม่สำเร็จ" }); }
+    finally { setBusy(false); }
+  };
+
+  const publishAllCertificates = async () => {
+    if (!selectedId || !window.confirm("ยืนยันเผยแพร่เกียรติบัตรฉบับร่างทั้งหมดของกิจกรรมนี้ให้นักเรียนดาวน์โหลด")) return;
+    setBusy(true); setNotice(null);
+    try {
+      const data = await responseJson<{ published: number }>(await fetch("/api/admin/certificates", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "publish_all", activityId: selectedId }) }));
+      await loadActivity(selectedId);
+      setNotice({ tone: "success", text: `เผยแพร่เกียรติบัตร ${data.published} รายการแล้ว` });
+    } catch (error) { setNotice({ tone: "error", text: error instanceof Error ? error.message : "เผยแพร่เกียรติบัตรไม่สำเร็จ" }); }
+    finally { setBusy(false); }
+  };
+
   if (authLoading) return <main className="admin-auth-screen"><div className="admin-loader" /><p>กำลังตรวจสอบสิทธิ์…</p></main>;
 
   if (!session) return (
@@ -198,19 +257,20 @@ export default function AdminPage() {
       <section className="admin-workspace">
         {notice && <div className={`admin-notice floating ${notice.tone}`}><span>{notice.text}</span><button type="button" onClick={() => setNotice(null)}>×</button></div>}
         {tab === "audit" ? (
-          <section className="audit-page"><div className="workspace-heading"><div><p>AUDIT LOG</p><h1>ประวัติการแก้ไขข้อมูล</h1></div><button className="admin-button secondary" type="button" onClick={() => loadOverview(selectedId)}>↻ โหลดใหม่</button></div><div className="audit-list">{auditLogs.map((log) => <article key={log.id}><span className={`audit-action ${log.action}`}>{log.action === "publish" ? "เผยแพร่" : log.action === "save_draft" ? "บันทึกร่าง" : log.action === "restore" ? "เรียกคืน" : log.action === "upload_document" ? "อัปโหลด" : log.action === "delete_document" ? "ลบไฟล์" : log.action}</span><div><strong>{log.summary}</strong><p>{activities.find((activity) => activity.activityId === log.activityId)?.shortTitle ?? "ระบบ"}</p></div><div><strong>{log.actorName}</strong><small>{formatTimestamp(log.createdAt)}</small></div></article>)}{!auditLogs.length && <div className="admin-empty"><strong>ยังไม่มีประวัติการแก้ไข</strong></div>}</div></section>
+          <section className="audit-page"><div className="workspace-heading"><div><p>AUDIT LOG</p><h1>ประวัติการแก้ไขข้อมูล</h1></div><button className="admin-button secondary" type="button" onClick={() => loadOverview(selectedId)}>↻ โหลดใหม่</button></div><div className="audit-list">{auditLogs.map((log) => <article key={log.id}><span className={`audit-action ${log.action}`}>{log.action === "publish" ? "เผยแพร่" : log.action === "save_draft" ? "บันทึกร่าง" : log.action === "restore" ? "เรียกคืน" : log.action === "upload_document" ? "อัปโหลด" : log.action === "delete_document" ? "ลบไฟล์" : log.action === "upload_certificate" ? "เกียรติบัตร" : log.action === "update_certificate" ? "แก้เกียรติบัตร" : log.action === "publish_certificates" ? "เผยแพร่เกียรติบัตร" : log.action === "delete_certificate" ? "ลบเกียรติบัตร" : log.action}</span><div><strong>{log.summary}</strong><p>{activities.find((activity) => activity.activityId === log.activityId)?.shortTitle ?? "ระบบ"}</p></div><div><strong>{log.actorName}</strong><small>{formatTimestamp(log.createdAt)}</small></div></article>)}{!auditLogs.length && <div className="admin-empty"><strong>ยังไม่มีประวัติการแก้ไข</strong></div>}</div></section>
         ) : busy && !draft ? <div className="workspace-loading"><div className="admin-loader" /><p>กำลังโหลดข้อมูลกิจกรรม…</p></div> : draft && activityState ? (
           <>
             <div className="workspace-heading"><div><p>{draft.competition.levelLabel}</p><h1>{draft.competition.shortTitle}</h1><span>รุ่นข้อมูล {activityState.revision} · {activityState.updatedBy ? `แก้ไขล่าสุดโดย ${activityState.updatedBy} เมื่อ ${formatTimestamp(activityState.updatedAt)}` : "ใช้ข้อมูลเริ่มต้นของเว็บไซต์"}</span></div><div className="workspace-status"><span className={activityState.status}>{activityState.status === "draft" ? "มีฉบับร่างที่ยังไม่เผยแพร่" : "ข้อมูลตรงกับหน้าเว็บไซต์"}</span>{dirty && <strong>● มีการแก้ไขที่ยังไม่บันทึก</strong>}</div></div>
-            <div className="editor-tabs" role="tablist">{([ ["results","ผลและคะแนน"], ["participants","รายชื่อ"], ["schedule","กำหนดการ"], ["rules","กติกา"], ["documents","เอกสาร"] ] as [EditorTab,string][]).map(([value,label]) => <button key={value} role="tab" aria-selected={tab === value} type="button" onClick={() => setTab(value)}>{label}</button>)}</div>
+            <div className="editor-tabs" role="tablist">{([ ["results","ผลและคะแนน"], ["participants","รายชื่อ"], ["schedule","กำหนดการ"], ["rules","กติกา"], ["documents","เอกสาร"], ["certificates","เกียรติบัตร"] ] as [EditorTab,string][]).map(([value,label]) => <button key={value} role="tab" aria-selected={tab === value} type="button" onClick={() => setTab(value)}>{label}</button>)}</div>
             <div className="editor-canvas">
               {tab === "results" && <ResultEditor draft={draft} change={changeDraft} />}
               {tab === "participants" && <ParticipantEditor draft={draft} change={changeDraft} />}
               {tab === "schedule" && <ScheduleEditor draft={draft} change={changeDraft} />}
               {tab === "rules" && <RulesEditor draft={draft} change={changeDraft} />}
               {tab === "documents" && <DocumentEditor draft={draft} documents={documents} change={changeDraft} onUpload={uploadDocument} onDelete={deleteUploadedDocument} busy={busy} />}
+              {tab === "certificates" && <CertificateEditor draft={draft} certificates={certificates} busy={busy} onUpload={uploadCertificates} onUpdate={updateCertificateRecord} onDelete={deleteCertificateRecord} onPublishAll={publishAllCertificates} />}
             </div>
-            <footer className="admin-actionbar"><div><strong>{dirty ? "มีการแก้ไขที่ยังไม่บันทึก" : activityState.status === "draft" ? "ฉบับร่างบันทึกแล้ว แต่ยังไม่ขึ้นหน้าเว็บไซต์" : "ข้อมูลล่าสุดเผยแพร่แล้ว"}</strong><small>การกด “เผยแพร่” จะนำข้อมูลทุกแท็บของกิจกรรมนี้ขึ้นหน้าเว็บไซต์พร้อมกัน</small></div><div>{activityState.revision > 0 && <button className="admin-button ghost" type="button" disabled={busy} onClick={() => save("restore")}>เรียกคืนข้อมูลที่เผยแพร่</button>}<button className="admin-button secondary" type="button" disabled={busy || !dirty} onClick={() => save("draft")}>บันทึกฉบับร่าง</button><button className="admin-button primary" type="button" disabled={busy} onClick={() => save("publish")}>{busy ? "กำลังดำเนินการ…" : "ตรวจทานและเผยแพร่ →"}</button></div></footer>
+            {tab !== "certificates" && <footer className="admin-actionbar"><div><strong>{dirty ? "มีการแก้ไขที่ยังไม่บันทึก" : activityState.status === "draft" ? "ฉบับร่างบันทึกแล้ว แต่ยังไม่ขึ้นหน้าเว็บไซต์" : "ข้อมูลล่าสุดเผยแพร่แล้ว"}</strong><small>การกด “เผยแพร่” จะนำข้อมูลทุกแท็บของกิจกรรมนี้ขึ้นหน้าเว็บไซต์พร้อมกัน</small></div><div>{activityState.revision > 0 && <button className="admin-button ghost" type="button" disabled={busy} onClick={() => save("restore")}>เรียกคืนข้อมูลที่เผยแพร่</button>}<button className="admin-button secondary" type="button" disabled={busy || !dirty} onClick={() => save("draft")}>บันทึกฉบับร่าง</button><button className="admin-button primary" type="button" disabled={busy} onClick={() => save("publish")}>{busy ? "กำลังดำเนินการ…" : "ตรวจทานและเผยแพร่ →"}</button></div></footer>}
           </>
         ) : <div className="workspace-loading"><p>เลือกกิจกรรมจากรายการด้านซ้าย</p></div>}
       </section>

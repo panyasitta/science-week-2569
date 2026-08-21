@@ -9,6 +9,7 @@ import {
   type ActivitySummary,
   type AuditLogEntry,
 } from "./content-model";
+import type { CertificateMetadata, CertificateStatus, StoredCertificate } from "./certificate-model";
 
 type RuntimeEnv = {
   DB: D1Database;
@@ -39,6 +40,24 @@ type DocumentRow = {
   object_key: string;
   created_at: string;
   created_by: string;
+};
+
+type CertificateRow = {
+  id: string;
+  activity_id: string;
+  recipient_name: string;
+  recipient_room: string | null;
+  team_name: string | null;
+  award: string | null;
+  file_name: string;
+  content_type: string;
+  size_bytes: number;
+  object_key: string;
+  status: CertificateStatus;
+  created_at: string;
+  created_by: string;
+  published_at: string | null;
+  published_by: string | null;
 };
 
 export type StoredDocument = {
@@ -101,6 +120,26 @@ export async function ensureStore(): Promise<void> {
       created_by TEXT NOT NULL
     )`),
     db.prepare("CREATE INDEX IF NOT EXISTS documents_activity_id_idx ON documents (activity_id)"),
+    db.prepare(`CREATE TABLE IF NOT EXISTS certificates (
+      id TEXT PRIMARY KEY,
+      activity_id TEXT NOT NULL,
+      recipient_name TEXT NOT NULL,
+      recipient_room TEXT,
+      team_name TEXT,
+      award TEXT,
+      file_name TEXT NOT NULL,
+      content_type TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      object_key TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'draft',
+      created_at TEXT NOT NULL,
+      created_by TEXT NOT NULL,
+      published_at TEXT,
+      published_by TEXT
+    )`),
+    db.prepare("CREATE INDEX IF NOT EXISTS certificates_activity_id_idx ON certificates (activity_id)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS certificates_recipient_name_idx ON certificates (recipient_name)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS certificates_status_idx ON certificates (status)"),
     db.prepare(`CREATE TABLE IF NOT EXISTS audit_logs (
       id TEXT PRIMARY KEY,
       activity_id TEXT,
@@ -310,6 +349,128 @@ export async function deleteDocument(id: string, actorName: string): Promise<voi
   await database().batch([
     database().prepare("DELETE FROM documents WHERE id = ?").bind(id),
     auditStatement(database(), document.activityId, "delete_document", actorName, `ลบเอกสาร ${document.fileName}`, null),
+  ]);
+}
+
+function mapCertificate(row: CertificateRow): StoredCertificate {
+  return {
+    id: row.id,
+    activityId: row.activity_id,
+    recipientName: row.recipient_name,
+    recipientRoom: row.recipient_room,
+    teamName: row.team_name,
+    award: row.award,
+    fileName: row.file_name,
+    contentType: row.content_type,
+    sizeBytes: row.size_bytes,
+    objectKey: row.object_key,
+    status: row.status,
+    createdAt: row.created_at,
+    createdBy: row.created_by,
+    publishedAt: row.published_at,
+    publishedBy: row.published_by,
+  };
+}
+
+export async function saveCertificate(activityId: string, metadata: CertificateMetadata, file: File, actorName: string): Promise<StoredCertificate> {
+  await ensureStore();
+  const bucket = getRuntimeEnv().BUCKET;
+  if (!bucket) throw new Error("ไม่พบพื้นที่จัดเก็บเกียรติบัตร BUCKET");
+  const id = crypto.randomUUID();
+  const safeName = file.name.replace(/[^\p{L}\p{N}._()\- ]/gu, "_").slice(0, 180) || "certificate.pdf";
+  const objectKey = `science-week-2569/certificates/${activityId}/${id}/${safeName}`;
+  const now = new Date().toISOString();
+  const publishedAt = metadata.status === "published" ? now : null;
+  const publishedBy = metadata.status === "published" ? actorName : null;
+  await bucket.put(objectKey, file.stream(), {
+    httpMetadata: {
+      contentType: "application/pdf",
+      contentDisposition: `attachment; filename*=UTF-8''${encodeURIComponent(safeName)}`,
+    },
+  });
+  await database().batch([
+    database().prepare(`INSERT INTO certificates (
+      id, activity_id, recipient_name, recipient_room, team_name, award,
+      file_name, content_type, size_bytes, object_key, status,
+      created_at, created_by, published_at, published_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'application/pdf', ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(
+        id,
+        activityId,
+        metadata.recipientName,
+        metadata.recipientRoom || null,
+        metadata.teamName || null,
+        metadata.award || null,
+        safeName,
+        file.size,
+        objectKey,
+        metadata.status,
+        now,
+        actorName,
+        publishedAt,
+        publishedBy,
+      ),
+    auditStatement(database(), activityId, "upload_certificate", actorName, `อัปโหลดเกียรติบัตร ${metadata.recipientName}`, null),
+  ]);
+  return (await getCertificate(id))!;
+}
+
+export async function listCertificates(activityId?: string): Promise<StoredCertificate[]> {
+  await ensureStore();
+  const query = activityId
+    ? database().prepare("SELECT * FROM certificates WHERE activity_id = ? ORDER BY recipient_name, created_at DESC").bind(activityId)
+    : database().prepare("SELECT * FROM certificates ORDER BY activity_id, recipient_name, created_at DESC");
+  const rows = await query.all<CertificateRow>();
+  return rows.results.map(mapCertificate);
+}
+
+export async function listPublishedCertificates(): Promise<StoredCertificate[]> {
+  await ensureStore();
+  const rows = await database().prepare("SELECT * FROM certificates WHERE status = 'published' ORDER BY activity_id, recipient_name, created_at DESC").all<CertificateRow>();
+  return rows.results.map(mapCertificate);
+}
+
+export async function getCertificate(id: string): Promise<StoredCertificate | null> {
+  await ensureStore();
+  const row = await database().prepare("SELECT * FROM certificates WHERE id = ?").bind(id).first<CertificateRow>();
+  return row ? mapCertificate(row) : null;
+}
+
+export async function updateCertificate(id: string, metadata: CertificateMetadata, actorName: string): Promise<StoredCertificate | null> {
+  await ensureStore();
+  const current = await getCertificate(id);
+  if (!current) return null;
+  const now = new Date().toISOString();
+  const publishedAt = metadata.status === "published" ? current.publishedAt ?? now : null;
+  const publishedBy = metadata.status === "published" ? current.publishedBy ?? actorName : null;
+  await database().batch([
+    database().prepare(`UPDATE certificates SET recipient_name = ?, recipient_room = ?, team_name = ?, award = ?,
+      status = ?, published_at = ?, published_by = ? WHERE id = ?`)
+      .bind(metadata.recipientName, metadata.recipientRoom || null, metadata.teamName || null, metadata.award || null, metadata.status, publishedAt, publishedBy, id),
+    auditStatement(database(), current.activityId, "update_certificate", actorName, `แก้ไขเกียรติบัตร ${metadata.recipientName}`, null),
+  ]);
+  return getCertificate(id);
+}
+
+export async function publishAllCertificates(activityId: string, actorName: string): Promise<number> {
+  await ensureStore();
+  const now = new Date().toISOString();
+  const result = await database().prepare(`UPDATE certificates SET status = 'published',
+    published_at = COALESCE(published_at, ?), published_by = COALESCE(published_by, ?)
+    WHERE activity_id = ? AND status = 'draft'`).bind(now, actorName, activityId).run();
+  const changed = Number(result.meta.changes ?? 0);
+  if (changed) await auditStatement(database(), activityId, "publish_certificates", actorName, `เผยแพร่เกียรติบัตร ${changed} รายการ`, null).run();
+  return changed;
+}
+
+export async function deleteCertificate(id: string, actorName: string): Promise<void> {
+  await ensureStore();
+  const certificate = await getCertificate(id);
+  if (!certificate) return;
+  await getRuntimeEnv().BUCKET.delete(certificate.objectKey);
+  await database().batch([
+    database().prepare("DELETE FROM certificates WHERE id = ?").bind(id),
+    auditStatement(database(), certificate.activityId, "delete_certificate", actorName, `ลบเกียรติบัตร ${certificate.recipientName}`, null),
   ]);
 }
 

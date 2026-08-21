@@ -4,13 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { competitions, type Competition, type CompetitionLevel } from "./competitions";
 import { participantDataUpdated, participantDirectory, type ActivityParticipants } from "./participants";
 import { resultAnnouncementNote, resultDirectory, type ActivityResult } from "./results";
+import type { PublicCertificate } from "./lib/certificate-model";
 import type { ActivityPayload } from "./lib/content-model";
 
 type FilterValue = "all" | CompetitionLevel;
 type ModalView = "participants" | "results" | "rules";
-
-const staticBase = ((import.meta as ImportMeta & { env?: { BASE_URL?: string } }).env?.BASE_URL ?? "/").replace(/\/?$/, "/");
-const publicAsset = (path: string) => `${staticBase}${path.replace(/^\/+/, "")}`;
 
 const CENTRAL_SITE_URL = "https://science-week-2569.chaiyarit-p94.chatgpt.site";
 
@@ -304,7 +302,7 @@ function CompetitionModal({ item, participantSet, resultSet, initialView, onClos
           <p>{footerCopy}</p>
           <div>
             <button className="button button-ghost-dark modal-switch" type="button" onClick={() => setView(switchTarget)}>{switchLabel} <span>↔</span></button>
-            <a className="button button-ghost-dark" href={publicAsset("downloads/science-competition-rules-2569.docx")} download>ดาวน์โหลดกติกา <span>↓</span></a>
+            <a className="button button-ghost-dark" href="/downloads/science-competition-rules-2569.docx" download>ดาวน์โหลดกติกา <span>↓</span></a>
             <a className="button button-primary" href={item.form} target="_blank" rel="noreferrer">สมัครรายการนี้ <span>↗</span></a>
           </div>
         </footer>
@@ -319,6 +317,10 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<{ item: Competition; view: ModalView } | null>(null);
   const [liveActivities, setLiveActivities] = useState<Record<string, ActivityPayload> | null>(null);
+  const [certificates, setCertificates] = useState<PublicCertificate[]>([]);
+  const [certificatesLoaded, setCertificatesLoaded] = useState(false);
+  const [certificateQuery, setCertificateQuery] = useState("");
+  const [certificateActivity, setCertificateActivity] = useState("all");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -333,6 +335,21 @@ export default function Home() {
       .catch((error: unknown) => {
         if (!(error instanceof DOMException && error.name === "AbortError")) console.warn("ใช้ข้อมูลสำรองของเว็บไซต์", error);
       });
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const endpoint = window.location.hostname.endsWith("github.io")
+      ? `${CENTRAL_SITE_URL}/api/certificates`
+      : "/api/certificates";
+    fetch(endpoint, { cache: "no-store", signal: controller.signal })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("certificate data unavailable")))
+      .then((data: { certificates?: PublicCertificate[] }) => setCertificates(Array.isArray(data.certificates) ? data.certificates : []))
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) console.warn("ไม่สามารถโหลดรายการเกียรติบัตร", error);
+      })
+      .finally(() => setCertificatesLoaded(true));
     return () => controller.abort();
   }, []);
 
@@ -356,6 +373,15 @@ export default function Home() {
   }, 0), [activityDirectory, competitionList]);
   const liveScheduleDays = useMemo(() => scheduleFrom(competitionList), [competitionList]);
   const selectedPayload = selected ? activityDirectory[selected.item.id] : null;
+  const certificateActivities = useMemo(() => [...new Map(certificates.map((certificate) => [certificate.activityId, { id: certificate.activityId, title: certificate.activityTitle }])).values()], [certificates]);
+  const filteredCertificates = useMemo(() => {
+    const normalized = certificateQuery.trim().toLocaleLowerCase("th");
+    return certificates.filter((certificate) => {
+      const matchesActivity = certificateActivity === "all" || certificate.activityId === certificateActivity;
+      const haystack = [certificate.recipientName, certificate.recipientRoom, certificate.teamName, certificate.award, certificate.activityTitle, certificate.activityLevel].filter(Boolean).join(" ").toLocaleLowerCase("th");
+      return matchesActivity && (!normalized || haystack.includes(normalized));
+    });
+  }, [certificateActivity, certificateQuery, certificates]);
 
   useEffect(() => {
     if (!selected) return;
@@ -408,7 +434,7 @@ export default function Home() {
           <a href="#results">ผลการแข่งขัน</a>
           <a href="#competitions">การแข่งขัน</a>
           <a href="#resources">เอกสาร</a>
-          <a className="nav-cta" href="#competitions">ดูรายชื่อ <span>↓</span></a>
+          <a className="nav-cta" href="#certificates">เกียรติบัตร <span>↓</span></a>
         </div>
       </nav>
 
@@ -424,6 +450,7 @@ export default function Home() {
             <div className="hero-actions">
               <a className="button button-primary" href="#competitions">ค้นหารายการของคุณ <span>↓</span></a>
               <a className="button button-ghost" href="#results">ตรวจผลการแข่งขัน</a>
+              <a className="button button-ghost" href="#certificates">ดาวน์โหลดเกียรติบัตร</a>
             </div>
             <div className="hero-meta" aria-label="ข้อมูลสำคัญของกิจกรรม">
               <div><strong>11</strong><span>รายการแข่งขัน</span></div>
@@ -469,6 +496,41 @@ export default function Home() {
               );
             })}
           </div>
+        </div>
+      </section>
+
+      <section className="certificate-section section" id="certificates">
+        <div className="shell">
+          <div className="section-heading certificate-heading">
+            <div><p className="eyebrow dark"><span /> DIGITAL CERTIFICATES</p><h2>ค้นหาและดาวน์โหลด<br /><em>เกียรติบัตรของคุณ</em></h2></div>
+            <p>ค้นหาด้วยชื่อ–นามสกุล แล้วตรวจสอบกิจกรรม ชั้น/ห้อง และรางวัลก่อนดาวน์โหลดไฟล์ PDF</p>
+          </div>
+          <div className="certificate-tools">
+            <label className="certificate-search"><span aria-hidden="true">⌕</span><input type="search" value={certificateQuery} onChange={(event) => setCertificateQuery(event.target.value)} placeholder="พิมพ์ชื่อ–นามสกุล ห้อง ทีม หรือรางวัล" aria-label="ค้นหาเกียรติบัตร" />{certificateQuery && <button type="button" onClick={() => setCertificateQuery("")} aria-label="ล้างคำค้นหา">×</button>}</label>
+            <label className="certificate-filter"><span>กิจกรรม</span><select value={certificateActivity} onChange={(event) => setCertificateActivity(event.target.value)}><option value="all">ทุกกิจกรรม</option>{certificateActivities.map((activity) => <option value={activity.id} key={activity.id}>{activity.title}</option>)}</select></label>
+          </div>
+          {!certificatesLoaded ? (
+            <div className="certificate-public-empty"><strong>กำลังโหลดรายการเกียรติบัตร…</strong></div>
+          ) : certificates.length === 0 ? (
+            <div className="certificate-public-empty"><span aria-hidden="true">✦</span><strong>ยังไม่เปิดให้ดาวน์โหลดเกียรติบัตร</strong><p>รายการจะปรากฏที่นี่หลังคณะกรรมการตรวจสอบและเผยแพร่ไฟล์แล้ว</p></div>
+          ) : filteredCertificates.length === 0 ? (
+            <div className="certificate-public-empty"><strong>ไม่พบเกียรติบัตรที่ตรงกับคำค้นหา</strong><p>ตรวจการสะกดชื่อ หรือลองเลือก “ทุกกิจกรรม”</p><button type="button" onClick={() => { setCertificateQuery(""); setCertificateActivity("all"); }}>แสดงทั้งหมด</button></div>
+          ) : (
+            <>
+              <div className="certificate-result-count"><strong>{filteredCertificates.length}</strong><span>เกียรติบัตรที่ค้นพบ</span></div>
+              <div className="certificate-download-list">
+                {filteredCertificates.map((certificate, index) => (
+                  <article key={certificate.id}>
+                    <span className="certificate-number">{String(index + 1).padStart(2, "0")}</span>
+                    <div className="certificate-recipient"><strong>{certificate.recipientName}</strong><small>{[certificate.recipientRoom, certificate.teamName].filter(Boolean).join(" · ") || "ผู้เข้าร่วมกิจกรรม"}</small></div>
+                    <div className="certificate-activity"><strong>{certificate.activityTitle}</strong><small>{certificate.activityLevel}</small></div>
+                    <span className="certificate-award">{certificate.award || "เข้าร่วม"}</span>
+                    <a href={certificate.downloadUrl}>ดาวน์โหลด PDF <span>↓</span></a>
+                  </article>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </section>
 
@@ -565,7 +627,7 @@ export default function Home() {
             <h2>เตรียมทีมให้พร้อม<br />ก่อนเริ่มภารกิจ</h2>
             <p>ดาวน์โหลดกติกาฉบับรวม อ่านรายละเอียดรายการที่เลือกให้ครบ และตรวจสอบวัน–เวลาอีกครั้งก่อนสมัคร</p>
             <div className="resource-actions">
-              <a className="button button-dark" href={publicAsset("downloads/science-competition-rules-2569.docx")} download>ดาวน์โหลดกติกาฉบับเต็ม <span>↓</span></a>
+              <a className="button button-dark" href="/downloads/science-competition-rules-2569.docx" download>ดาวน์โหลดกติกาฉบับเต็ม <span>↓</span></a>
               <a className="text-link" href="#competitions">กลับไปเลือกรายการ <span>↑</span></a>
             </div>
           </div>
