@@ -25,6 +25,28 @@ export const documents = sqliteTable("documents", {
   index("documents_activity_id_idx").on(table.activityId),
 ]);
 
+export const certificates = sqliteTable("certificates", {
+  id: text("id").primaryKey(),
+  activityId: text("activity_id").notNull(),
+  recipientName: text("recipient_name").notNull(),
+  recipientRoom: text("recipient_room"),
+  teamName: text("team_name"),
+  award: text("award"),
+  fileName: text("file_name").notNull(),
+  contentType: text("content_type").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  objectKey: text("object_key").notNull(),
+  status: text("status", { enum: ["draft", "published"] }).notNull().default("draft"),
+  createdAt: text("created_at").notNull(),
+  createdBy: text("created_by").notNull(),
+  publishedAt: text("published_at"),
+  publishedBy: text("published_by"),
+}, (table) => [
+  index("certificates_activity_id_idx").on(table.activityId),
+  index("certificates_recipient_name_idx").on(table.recipientName),
+  index("certificates_status_idx").on(table.status),
+]);
+
 export const auditLogs = sqliteTable("audit_logs", {
   id: text("id").primaryKey(),
   activityId: text("activity_id"),
