@@ -1,20 +1,49 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { competitions, scheduleDays, type Competition, type CompetitionLevel } from "./competitions";
-import { participantDataUpdated, participantDirectory } from "./participants";
+import { competitions, type Competition, type CompetitionLevel } from "./competitions";
+import { participantDataUpdated, participantDirectory, type ActivityParticipants } from "./participants";
+import { resultAnnouncementNote, resultDirectory, type ActivityResult } from "./results";
+import type { ActivityPayload } from "./lib/content-model";
 
 type FilterValue = "all" | CompetitionLevel;
-type ModalView = "participants" | "rules";
+type ModalView = "participants" | "results" | "rules";
 
 const staticBase = ((import.meta as ImportMeta & { env?: { BASE_URL?: string } }).env?.BASE_URL ?? "/").replace(/\/?$/, "/");
 const publicAsset = (path: string) => `${staticBase}${path.replace(/^\/+/, "")}`;
 
-const totalRegisteredTeams = Object.values(participantDirectory).reduce((total, activity) => total + activity.teams.length, 0);
-const totalRegisteredParticipants = Object.values(participantDirectory).reduce(
-  (total, activity) => total + activity.teams.reduce((activityTotal, team) => activityTotal + team.members.length, 0),
-  0,
-);
+const CENTRAL_SITE_URL = "https://science-week-2569.chaiyarit-p94.chatgpt.site";
+
+const scheduleGroups = [
+  { ids: ["science-show-lower", "science-show-upper"], label: "Science Show", note: "ม.ต้น และ ม.ปลาย", tone: "violet" },
+  { ids: ["science-quiz-lower", "science-quiz-upper"], label: "ตอบปัญหาวิทยาศาสตร์", note: "ม.ต้น และ ม.ปลาย", tone: "cyan" },
+  { ids: ["painting-lower", "painting-upper"], label: "วาดภาพ–ระบายสี", note: "ม.ต้น และ ม.ปลาย", tone: "gold" },
+  { ids: ["food-web"], label: "บอร์ดเกม Food Web", note: "ม.ต้น", tone: "cyan" },
+  { ids: ["air-rocket"], label: "จรวดพลังลม", note: "ม.ต้น", tone: "cyan" },
+  { ids: ["water-rocket-lower", "water-rocket-upper"], label: "จรวดขวดน้ำ", note: "ม.ต้น และ ม.ปลาย", tone: "violet" },
+  { ids: ["recycled-costume"], label: "ชุดรีไซเคิล", note: "ทุกระดับชั้น", tone: "gold" },
+] as const;
+
+function unique(values: string[]): string[] {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function scheduleFrom(competitionList: Competition[]) {
+  const byId = new Map(competitionList.map((item) => [item.id, item]));
+  return scheduleGroups.map((group) => {
+    const items = group.ids.map((id) => byId.get(id)).filter((item): item is Competition => Boolean(item));
+    const dates = unique(items.map((item) => item.dateShort.replace(/\s*ส\.ค\.$/, "")));
+    const times = unique(items.map((item) => item.time));
+    const places = unique(items.map((item) => item.place));
+    return {
+      day: dates.join(" / ") || "—",
+      label: group.label,
+      note: group.note,
+      detail: `${times.join(" / ") || "—"} · ${places.join(" / ") || "—"}`,
+      tone: group.tone,
+    };
+  });
+}
 
 const filters: { value: FilterValue; label: string; helper: string }[] = [
   { value: "all", label: "ทั้งหมด", helper: "11 รายการ" },
@@ -59,11 +88,10 @@ function Countdown() {
   );
 }
 
-function CompetitionModal({ item, initialView, onClose }: { item: Competition; initialView: ModalView; onClose: () => void }) {
+function CompetitionModal({ item, participantSet, resultSet, initialView, onClose }: { item: Competition; participantSet?: ActivityParticipants; resultSet: ActivityResult; initialView: ModalView; onClose: () => void }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const [view, setView] = useState<ModalView>(initialView);
   const [participantQuery, setParticipantQuery] = useState("");
-  const participantSet = participantDirectory[item.id];
 
   const indexedTeams = useMemo(() => {
     let participantNo = 1;
@@ -87,6 +115,16 @@ function CompetitionModal({ item, initialView, onClose }: { item: Competition; i
 
   const totalPeople = indexedTeams.reduce((total, team) => total + team.members.length, 0);
   const filteredPeople = filteredTeams.reduce((total, team) => total + team.members.length, 0);
+  const hasPublishedResults = resultSet.status === "published" && resultSet.entries.length > 0;
+  const footerCopy = view === "results"
+    ? hasPublishedResults
+      ? `ประกาศผล ณ วันที่ ${resultSet.announcementDate ?? "—"}`
+      : "ผลการแข่งขันจะแสดงหลังคณะกรรมการรับรอง"
+    : view === "participants"
+      ? `รายชื่อประกาศ ณ วันที่ ${participantDataUpdated}`
+      : "อ่านกติกาให้ครบถ้วนก่อนเข้าร่วมการแข่งขัน";
+  const switchTarget: ModalView = view === "participants" ? "results" : "participants";
+  const switchLabel = view === "participants" ? "ดูผลการแข่งขัน" : "ดูรายชื่อ";
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -113,6 +151,9 @@ function CompetitionModal({ item, initialView, onClose }: { item: Competition; i
         </div>
 
         <div className="modal-tabs" role="tablist" aria-label="ข้อมูลกิจกรรม">
+          <button type="button" role="tab" aria-selected={view === "results"} onClick={() => setView("results")}>
+            <span>ผลการแข่งขัน</span><small>{hasPublishedResults ? `${resultSet.entries.length} รางวัล` : "รอประกาศผล"}</small>
+          </button>
           <button type="button" role="tab" aria-selected={view === "participants"} onClick={() => setView("participants")}>
             <span>รายชื่อผู้เข้าแข่งขัน</span><small>{totalPeople} คน</small>
           </button>
@@ -121,7 +162,61 @@ function CompetitionModal({ item, initialView, onClose }: { item: Competition; i
           </button>
         </div>
 
-        {view === "participants" ? (
+        {view === "results" ? (
+          <section className="competition-results-panel" role="tabpanel" aria-label={`ผลการแข่งขัน ${item.title}`}>
+            <div className="competition-results-heading">
+              <div>
+                <p>ประกาศผลการแข่งขัน</p>
+                <h3>{item.shortTitle}</h3>
+                <small>{resultAnnouncementNote}</small>
+              </div>
+              <span className={`result-status-badge ${hasPublishedResults ? "published" : "pending"}`}>
+                {hasPublishedResults ? "ประกาศผลแล้ว" : "รอประกาศผล"}
+              </span>
+            </div>
+
+            {hasPublishedResults ? (
+              <>
+                <div className="result-entry-list">
+                  {resultSet.entries.map((entry, entryIndex) => (
+                    <article className="result-entry" key={`${entry.award}-${entry.team ?? entry.title ?? entryIndex}`}>
+                      <div className="result-award">
+                        <span>{String(entryIndex + 1).padStart(2, "0")}</span>
+                        <strong>{entry.award}</strong>
+                      </div>
+                      <div className="result-winner">
+                        {(entry.team || entry.title) && (
+                          <div className="result-team-title">
+                            {entry.team && <strong>{/^\d+$/.test(entry.team) ? `ทีม ${entry.team}` : entry.team}</strong>}
+                            {entry.title && <small>{entry.title}</small>}
+                          </div>
+                        )}
+                        <ul>
+                          {entry.members.map((member) => (
+                            <li key={`${member.name}-${member.room ?? ""}`}><span>{member.name}</span><small>{member.room || "—"}</small></li>
+                          ))}
+                        </ul>
+                        {entry.note && <p>{entry.note}</p>}
+                      </div>
+                      {entry.score && <div className="result-score"><span>คะแนน</span><strong>{entry.score}</strong></div>}
+                    </article>
+                  ))}
+                </div>
+                <div className="result-verification-note">
+                  <span aria-hidden="true">✓</span>
+                  <div><strong>ผลผ่านการรับรองแล้ว</strong><p>ประกาศ ณ วันที่ {resultSet.announcementDate ?? "—"}</p></div>
+                  {resultSet.documentUrl && <a href={resultSet.documentUrl} target="_blank" rel="noreferrer">เปิดประกาศฉบับเต็ม <span>↗</span></a>}
+                </div>
+              </>
+            ) : (
+              <div className="result-pending-state">
+                <span aria-hidden="true">⌛</span>
+                <strong>อยู่ระหว่างรอผลที่คณะกรรมการรับรอง</strong>
+                <p>เมื่อผลการแข่งขันได้รับการยืนยัน ระบบจะแสดงอันดับ ทีม รายชื่อผู้เข้าแข่งขัน ชั้น/ห้อง คะแนน และหมายเหตุในหน้านี้</p>
+              </div>
+            )}
+          </section>
+        ) : view === "participants" ? (
           <section className="participant-panel" role="tabpanel" aria-label={`รายชื่อผู้เข้าแข่งขัน ${item.title}`}>
             <div className="participant-panel-heading">
               <div>
@@ -206,9 +301,9 @@ function CompetitionModal({ item, initialView, onClose }: { item: Competition; i
         )}
 
         <footer className="modal-footer">
-          <p>{view === "participants" ? `รายชื่อประกาศ ณ วันที่ ${participantDataUpdated}` : "อ่านกติกาให้ครบถ้วนก่อนเข้าร่วมการแข่งขัน"}</p>
+          <p>{footerCopy}</p>
           <div>
-            <button className="button button-ghost-dark modal-switch" type="button" onClick={() => setView(view === "participants" ? "rules" : "participants")}>{view === "participants" ? "ดูกติกา" : "ดูรายชื่อ"} <span>↔</span></button>
+            <button className="button button-ghost-dark modal-switch" type="button" onClick={() => setView(switchTarget)}>{switchLabel} <span>↔</span></button>
             <a className="button button-ghost-dark" href={publicAsset("downloads/science-competition-rules-2569.docx")} download>ดาวน์โหลดกติกา <span>↓</span></a>
             <a className="button button-primary" href={item.form} target="_blank" rel="noreferrer">สมัครรายการนี้ <span>↗</span></a>
           </div>
@@ -223,6 +318,44 @@ export default function Home() {
   const [showAllLevelsOnly, setShowAllLevelsOnly] = useState(false);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<{ item: Competition; view: ModalView } | null>(null);
+  const [liveActivities, setLiveActivities] = useState<Record<string, ActivityPayload> | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const endpoint = window.location.hostname.endsWith("github.io")
+      ? `${CENTRAL_SITE_URL}/api/public-data`
+      : "/api/public-data";
+    fetch(endpoint, { cache: "no-store", signal: controller.signal })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("public data unavailable")))
+      .then((data: { activities?: Record<string, ActivityPayload> }) => {
+        if (data.activities && typeof data.activities === "object") setLiveActivities(data.activities);
+      })
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) console.warn("ใช้ข้อมูลสำรองของเว็บไซต์", error);
+      });
+    return () => controller.abort();
+  }, []);
+
+  const activityDirectory = useMemo<Record<string, ActivityPayload>>(() => Object.fromEntries(
+    competitions.map((item) => [item.id, liveActivities?.[item.id] ?? {
+      competition: item,
+      participants: participantDirectory[item.id],
+      result: resultDirectory[item.id] ?? { status: "pending", entries: [] },
+    }]),
+  ), [liveActivities]);
+  const competitionList = useMemo(() => competitions.map((item) => activityDirectory[item.id]?.competition ?? item), [activityDirectory]);
+  const totalRegisteredTeams = useMemo(() => competitionList.reduce((total, item) => total + (activityDirectory[item.id]?.participants.teams.length ?? 0), 0), [activityDirectory, competitionList]);
+  const totalRegisteredParticipants = useMemo(() => competitionList.reduce((total, item) => total + (activityDirectory[item.id]?.participants.teams.reduce((activityTotal, team) => activityTotal + team.members.length, 0) ?? 0), 0), [activityDirectory, competitionList]);
+  const totalPublishedResultActivities = useMemo(() => competitionList.filter((item) => {
+    const result = activityDirectory[item.id]?.result;
+    return result?.status === "published" && result.entries.length > 0;
+  }).length, [activityDirectory, competitionList]);
+  const totalPublishedAwards = useMemo(() => competitionList.reduce((total, item) => {
+    const result = activityDirectory[item.id]?.result;
+    return total + (result?.status === "published" ? result.entries.length : 0);
+  }, 0), [activityDirectory, competitionList]);
+  const liveScheduleDays = useMemo(() => scheduleFrom(competitionList), [competitionList]);
+  const selectedPayload = selected ? activityDirectory[selected.item.id] : null;
 
   useEffect(() => {
     if (!selected) return;
@@ -238,17 +371,25 @@ export default function Home() {
 
   const filteredCompetitions = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("th");
-    return competitions.filter((item) => {
+    return competitionList.filter((item) => {
       const matchesLevel = showAllLevelsOnly ? item.level === "all" : activeFilter === "all" || item.level === activeFilter;
-      const participantTerms = participantDirectory[item.id]?.teams.flatMap((team) => [
+      const participantTerms = activityDirectory[item.id]?.participants.teams.flatMap((team) => [
         team.team,
         team.title,
         ...team.members.flatMap((member) => [member.name, member.room, member.role]),
       ]).filter(Boolean).join(" ") ?? "";
-      const haystack = [item.title, item.shortTitle, item.subtitle, item.description, item.levelLabel, item.place, ...item.tags, participantTerms].join(" ").toLocaleLowerCase("th");
+      const resultTerms = activityDirectory[item.id]?.result.entries.flatMap((entry) => [
+        entry.award,
+        entry.team,
+        entry.title,
+        entry.score,
+        entry.note,
+        ...entry.members.flatMap((member) => [member.name, member.room]),
+      ]).filter(Boolean).join(" ") ?? "";
+      const haystack = [item.title, item.shortTitle, item.subtitle, item.description, item.levelLabel, item.place, ...item.tags, participantTerms, resultTerms].join(" ").toLocaleLowerCase("th");
       return matchesLevel && (!normalized || haystack.includes(normalized));
     });
-  }, [activeFilter, query, showAllLevelsOnly]);
+  }, [activeFilter, activityDirectory, competitionList, query, showAllLevelsOnly]);
 
   const chooseFilter = (value: FilterValue, allLevelsOnly = false) => {
     setActiveFilter(value);
@@ -264,6 +405,7 @@ export default function Home() {
         </a>
         <div className="nav-links">
           <a href="#schedule">กำหนดการ</a>
+          <a href="#results">ผลการแข่งขัน</a>
           <a href="#competitions">การแข่งขัน</a>
           <a href="#resources">เอกสาร</a>
           <a className="nav-cta" href="#competitions">ดูรายชื่อ <span>↓</span></a>
@@ -281,7 +423,7 @@ export default function Home() {
             <p className="hero-lead">เมื่อเวทมนตร์ไม่ใช่เรื่องลึกลับ แต่คือวิทยาศาสตร์ที่รอการค้นพบ ร่วมคิด ทดลอง ประลองกลยุทธ์ และปล่อยพลังแห่งความอยากรู้ไปด้วยกัน</p>
             <div className="hero-actions">
               <a className="button button-primary" href="#competitions">ค้นหารายการของคุณ <span>↓</span></a>
-              <a className="button button-ghost" href="#schedule">ดูกำหนดการทั้งหมด</a>
+              <a className="button button-ghost" href="#results">ตรวจผลการแข่งขัน</a>
             </div>
             <div className="hero-meta" aria-label="ข้อมูลสำคัญของกิจกรรม">
               <div><strong>11</strong><span>รายการแข่งขัน</span></div>
@@ -301,6 +443,35 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="results-section section" id="results">
+        <div className="shell">
+          <div className="section-heading results-heading">
+            <div><p className="eyebrow dark"><span /> OFFICIAL RESULTS</p><h2>ประกาศผลการแข่งขัน<br /><em>ทีละกิจกรรม</em></h2></div>
+            <p>ผลแต่ละรายการจะแสดงทันทีหลังผ่านการตรวจสอบและรับรองจากคณะกรรมการ โดยไม่ต้องรอให้การแข่งขันครบทุกกิจกรรม</p>
+          </div>
+
+          <div className="results-overview">
+            <div className="results-progress-copy"><span>ประกาศแล้ว</span><strong>{totalPublishedResultActivities}<small> / {competitionList.length} กิจกรรม</small></strong><p>{totalPublishedAwards > 0 ? `${totalPublishedAwards} รางวัลที่ประกาศอย่างเป็นทางการ` : "ระบบพร้อมสำหรับบันทึกและเผยแพร่ผลการแข่งขัน"}</p></div>
+            <div className="results-progress" aria-label={`ประกาศผลแล้ว ${totalPublishedResultActivities} จาก ${competitionList.length} กิจกรรม`}><i style={{ width: `${(totalPublishedResultActivities / competitionList.length) * 100}%` }} /></div>
+            <p>{resultAnnouncementNote}</p>
+          </div>
+
+          <div className="results-activity-list">
+            {competitionList.map((item) => {
+              const resultSet = activityDirectory[item.id]?.result;
+              const isPublished = resultSet?.status === "published" && resultSet.entries.length > 0;
+              return (
+                <button className={`results-activity ${isPublished ? "published" : "pending"}`} type="button" key={item.id} onClick={() => setSelected({ item, view: "results" })} aria-label={`ดูผลการแข่งขัน ${item.shortTitle}`}>
+                  <span className="results-activity-number">{String(item.order).padStart(2, "0")}</span>
+                  <span className="results-activity-name"><strong>{item.shortTitle}</strong><small>{item.levelLabel}</small></span>
+                  <span className="results-activity-status">{isPublished ? `${resultSet.entries.length} รางวัล` : "รอประกาศผล"}<i>→</i></span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
       <section className="schedule-section section" id="schedule">
         <div className="shell">
           <div className="section-heading split-heading">
@@ -309,7 +480,7 @@ export default function Home() {
           </div>
           <div className="schedule-layout">
             <div className="schedule-track">
-              {scheduleDays.map((item) => (
+              {liveScheduleDays.map((item) => (
                 <article className={`schedule-item ${item.tone}`} key={`${item.day}-${item.label}`}>
                   <div className="date-badge"><small>ส.ค.</small><strong>{item.day}</strong></div>
                   <div><h3>{item.label}</h3><p>{item.note}</p><small>{item.detail}</small></div>
@@ -352,8 +523,10 @@ export default function Home() {
           {filteredCompetitions.length > 0 ? (
             <div className="competition-grid full-grid">
               {filteredCompetitions.map((item) => {
-                const activityParticipants = participantDirectory[item.id];
+                const activityParticipants = activityDirectory[item.id]?.participants;
                 const activityPeople = activityParticipants?.teams.reduce((total, team) => total + team.members.length, 0) ?? 0;
+                const activityResult = activityDirectory[item.id]?.result;
+                const hasActivityResult = activityResult?.status === "published" && activityResult.entries.length > 0;
                 return (
                 <article className={`competition-card ${item.accent}`} key={item.id} data-competition={item.id}>
                   <div className="card-topline"><span>{String(item.order).padStart(2, "0")}</span><i /><small>{item.levelShort}</small></div>
@@ -366,10 +539,12 @@ export default function Home() {
                     <div><dt>เวลา</dt><dd>{item.time}</dd></div>
                     <div><dt>สถานที่</dt><dd>{item.place}</dd></div>
                     <div className="participant-fact"><dt>รายชื่อ</dt><dd>{activityParticipants?.teams.length ?? 0} ทีม · {activityPeople} คน</dd></div>
+                    <div className={`result-fact ${hasActivityResult ? "published" : "pending"}`}><dt>ผล</dt><dd>{hasActivityResult ? `ประกาศแล้ว ${activityResult.entries.length} รางวัล` : "รอประกาศผล"}</dd></div>
                     {item.deadline && <div className="deadline-fact"><dt>สมัครภายใน</dt><dd>{item.deadline}</dd></div>}
                   </dl>
-                  <div className="card-actions card-actions-with-list">
+                  <div className="card-actions card-actions-with-results">
                     <button className="participant-button" type="button" onClick={() => setSelected({ item, view: "participants" })}>รายชื่อผู้เข้าแข่งขัน <span>→</span></button>
+                    <button className={`result-button ${hasActivityResult ? "published" : "pending"}`} type="button" onClick={() => setSelected({ item, view: "results" })}>ผลการแข่งขัน <span>★</span></button>
                     <button type="button" onClick={() => setSelected({ item, view: "rules" })} aria-label={`อ่านกติกา ${item.shortTitle}`}>กติกา <span>＋</span></button>
                     <a href={item.form} target="_blank" rel="noreferrer" aria-label={`สมัคร ${item.shortTitle}`}>สมัคร <span>↗</span></a>
                   </div>
@@ -411,12 +586,11 @@ export default function Home() {
         <div className="shell footer-inner">
           <div className="wordmark footer-mark"><span className="wordmark-mark">✦</span><span><strong>SCIENCE TC 💛❤️</strong><small>โรงเรียนทุ่งเสลี่ยมชนูปถัมภ์</small></span></div>
           <p>งานสัปดาห์วิทยาศาสตร์แห่งชาติ · ปีการศึกษา 2569</p>
-          <a href="#top">กลับด้านบน ↑</a>
+          <div><a href={`${CENTRAL_SITE_URL}/admin`}>สำหรับกรรมการ</a><a href="#top">กลับด้านบน ↑</a></div>
         </div>
       </footer>
 
-      {selected && <CompetitionModal item={selected.item} initialView={selected.view} onClose={() => setSelected(null)} />}
+      {selected && selectedPayload && <CompetitionModal item={selectedPayload.competition} participantSet={selectedPayload.participants} resultSet={selectedPayload.result} initialView={selected.view} onClose={() => setSelected(null)} />}
     </main>
   );
 }
-
