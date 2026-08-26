@@ -1830,7 +1830,7 @@ export const participantDirectory: Record<string, ActivityParticipants> = {
             "room": "ม.2/1"
           },
           {
-            "name": "เด็กหญิง ธัญยรัตน์ วงศ์อ่อน",
+            "name": "เด็กหญิง ธัญญรัตน์ วงศ์อ่อน",
             "room": "ม.2/1"
           }
         ]
@@ -2645,7 +2645,7 @@ export const participantDirectory: Record<string, ActivityParticipants> = {
             "room": "ม.2/1"
           },
           {
-            "name": "เด็กหญิง ธัญยรัตน์ วงศ์อ่อน",
+            "name": "เด็กหญิง ธัญญรัตน์ วงศ์อ่อน",
             "room": "ม.2/1"
           },
           {
