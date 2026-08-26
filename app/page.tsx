@@ -6,6 +6,7 @@ import { participantDataUpdated, participantDirectory, type ActivityParticipants
 import { resultAnnouncementNote, resultDirectory, type ActivityResult } from "./results";
 import type { PublicCertificate } from "./lib/certificate-model";
 import type { ActivityPayload } from "./lib/content-model";
+import { driveCertificates, mergeCertificates } from "./certificate-fetch-patch";
 
 type FilterValue = "all" | CompetitionLevel;
 type ModalView = "participants" | "results" | "rules";
@@ -317,8 +318,8 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<{ item: Competition; view: ModalView } | null>(null);
   const [liveActivities, setLiveActivities] = useState<Record<string, ActivityPayload> | null>(null);
-  const [certificates, setCertificates] = useState<PublicCertificate[]>([]);
-  const [certificatesLoaded, setCertificatesLoaded] = useState(false);
+  const [certificates, setCertificates] = useState<PublicCertificate[]>(driveCertificates);
+  const [certificatesLoaded, setCertificatesLoaded] = useState(true);
   const [certificateQuery, setCertificateQuery] = useState("");
   const [certificateActivity, setCertificateActivity] = useState("all");
 
@@ -345,9 +346,9 @@ export default function Home() {
       : "/api/certificates";
     fetch(endpoint, { cache: "no-store", signal: controller.signal })
       .then((response) => response.ok ? response.json() : Promise.reject(new Error("certificate data unavailable")))
-      .then((data: { certificates?: PublicCertificate[] }) => setCertificates(Array.isArray(data.certificates) ? data.certificates : []))
+      .then((data: { certificates?: PublicCertificate[] }) => setCertificates(mergeCertificates(Array.isArray(data.certificates) ? data.certificates : [])))
       .catch((error: unknown) => {
-        if (!(error instanceof DOMException && error.name === "AbortError")) console.warn("ไม่สามารถโหลดรายการเกียรติบัตร", error);
+        if (!(error instanceof DOMException && error.name === "AbortError")) console.warn("ใช้รายการเกียรติบัตรสำรองจาก Google Drive", error);
       })
       .finally(() => setCertificatesLoaded(true));
     return () => controller.abort();
@@ -503,7 +504,7 @@ export default function Home() {
         <div className="shell">
           <div className="section-heading certificate-heading">
             <div><p className="eyebrow dark"><span /> DIGITAL CERTIFICATES</p><h2>ค้นหาและดาวน์โหลด<br /><em>เกียรติบัตรของคุณ</em></h2></div>
-            <p>ค้นหาด้วยชื่อ–นามสกุล แล้วตรวจสอบกิจกรรม ชั้น/ห้อง และรางวัลก่อนดาวน์โหลดไฟล์ PDF</p>
+            <p>ค้นหาด้วยชื่อ–นามสกุล แล้วตรวจสอบกิจกรรม ชั้น/ห้อง และรางวัลก่อนดาวน์โหลดไฟล์เกียรติบัตร</p>
           </div>
           <div className="certificate-tools">
             <label className="certificate-search"><span aria-hidden="true">⌕</span><input type="search" value={certificateQuery} onChange={(event) => setCertificateQuery(event.target.value)} placeholder="พิมพ์ชื่อ–นามสกุล ห้อง ทีม หรือรางวัล" aria-label="ค้นหาเกียรติบัตร" />{certificateQuery && <button type="button" onClick={() => setCertificateQuery("")} aria-label="ล้างคำค้นหา">×</button>}</label>
@@ -525,7 +526,7 @@ export default function Home() {
                     <div className="certificate-recipient"><strong>{certificate.recipientName}</strong><small>{[certificate.recipientRoom, certificate.teamName].filter(Boolean).join(" · ") || "ผู้เข้าร่วมกิจกรรม"}</small></div>
                     <div className="certificate-activity"><strong>{certificate.activityTitle}</strong><small>{certificate.activityLevel}</small></div>
                     <span className="certificate-award">{certificate.award || "เข้าร่วม"}</span>
-                    <a href={certificate.downloadUrl}>ดาวน์โหลด PDF <span>↓</span></a>
+                    <a href={certificate.downloadUrl}>ดาวน์โหลดเกียรติบัตร <span>↓</span></a>
                   </article>
                 ))}
               </div>

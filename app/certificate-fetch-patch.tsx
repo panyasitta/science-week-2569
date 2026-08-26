@@ -130,14 +130,14 @@ function makeDriveCertificates(): PublicCertificate[] {
   return certificates;
 }
 
-const driveCertificates = makeDriveCertificates();
+export const driveCertificates = makeDriveCertificates();
 let fetchPatched = false;
 
 function certificateKey(certificate: PublicCertificate): string {
   return [certificate.activityId, certificate.recipientName.trim().toLocaleLowerCase("th"), certificate.award ?? ""].join("::");
 }
 
-function mergeCertificates(liveCertificates: PublicCertificate[]): PublicCertificate[] {
+export function mergeCertificates(liveCertificates: PublicCertificate[]): PublicCertificate[] {
   const merged = new Map<string, PublicCertificate>();
   driveCertificates.forEach((certificate) => merged.set(certificateKey(certificate), certificate));
   liveCertificates.forEach((certificate) => merged.set(certificateKey(certificate), certificate));
