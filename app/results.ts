@@ -240,4 +240,64 @@ export const resultDirectory: Record<string, ActivityResult> = {
   "recycled-costume": pendingResult(),
 };
 
+function hasPublishedEntries(result: ActivityResult | undefined): boolean {
+  return result?.status === "published" && result.entries.length > 0;
+}
+
+// GitHub Pages ใช้ข้อมูลสดจากเว็บไซต์กลาง ซึ่งอาจยังมีสถานะ pending อยู่บางรายการ
+// จึงผสานผลที่คณะกรรมการรับรองในไฟล์นี้เข้าไปเฉพาะเมื่อข้อมูลสดยังไม่ประกาศผล
+// หากหลังบ้านประกาศผลแล้ว ข้อมูลสดจะมีลำดับความสำคัญสูงกว่าโดยอัตโนมัติ
+if (typeof window !== "undefined" && window.location.hostname.endsWith("github.io")) {
+  const clientWindow = window as Window & { __scienceWeek2569ResultMergePatched?: boolean };
+
+  if (!clientWindow.__scienceWeek2569ResultMergePatched) {
+    const originalFetch = window.fetch.bind(window);
+
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const response = await originalFetch(input, init);
+      const requestedUrl = typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
+
+      if (!response.ok || !requestedUrl.includes("/api/public-data")) return response;
+
+      try {
+        const payload = await response.clone().json() as {
+          activities?: Record<string, { result?: ActivityResult }>;
+          [key: string]: unknown;
+        };
+
+        if (!payload.activities || typeof payload.activities !== "object") return response;
+
+        let changed = false;
+        for (const [activityId, localResult] of Object.entries(resultDirectory)) {
+          const liveActivity = payload.activities[activityId];
+          if (!liveActivity) continue;
+
+          if (hasPublishedEntries(localResult) && !hasPublishedEntries(liveActivity.result)) {
+            liveActivity.result = localResult;
+            changed = true;
+          }
+        }
+
+        if (!changed) return response;
+
+        const headers = new Headers(response.headers);
+        headers.delete("content-length");
+        return new Response(JSON.stringify(payload), {
+          status: response.status,
+          statusText: response.statusText,
+          headers,
+        });
+      } catch {
+        return response;
+      }
+    };
+
+    clientWindow.__scienceWeek2569ResultMergePatched = true;
+  }
+}
+
 export const resultAnnouncementNote = "ประกาศเฉพาะผลที่ผ่านการตรวจสอบและรับรองจากคณะกรรมการแล้ว";
