@@ -1,0 +1,66 @@
+name: Correct certificate names
+
+on:
+  push:
+    paths:
+      - '.github/workflows/correct-certificate-names.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  correct:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Apply certificate-authoritative names
+        shell: python
+        run: |
+          from pathlib import Path
+
+          replacements = {
+              'เด็กหญิงกันต์มล สุขนุ่ม': 'เด็กหญิงกันต์กมล สุขนุ่ม',
+              'เด็กหญิงธัญยรัตน์ วงศ์อ่อน': 'เด็กหญิงธัญญรัตน์ วงศ์อ่อน',
+          }
+
+          changed = []
+          for path in Path('app').rglob('*'):
+              if path.suffix not in {'.ts', '.tsx', '.js', '.jsx', '.json'}:
+                  continue
+              text = path.read_text(encoding='utf-8')
+              original = text
+              for old, new in replacements.items():
+                  text = text.replace(old, new)
+              if path.as_posix() == 'app/certificate-fetch-patch.tsx':
+                  text = text.replace(
+                      '[null, "1dNj-CiprvBRrw7n5PCz0uApPnwn4LJ5F", "14FKdJi0h__UAHGv95Uvzuso0qbuSUF56"]',
+                      '["1ZUZWmlRY5ci1J26ldBu3llGsR1T4whGA", "1dNj-CiprvBRrw7n5PCz0uApPnwn4LJ5F", "14FKdJi0h__UAHGv95Uvzuso0qbuSUF56"]',
+                  )
+                  text = text.replace(
+                      '["1YLK5zCK8iRvhHOwkzw0AqHdhUWUWzpPJ", null, "1Y1TZRX-wfXOIYXWI5wWpKhJldTeeZ4IR"]',
+                      '["1YLK5zCK8iRvhHOwkzw0AqHdhUWUWzpPJ", "1lG_38xcLI3KQla4bWWJNibLLuj4CPMMU", "1Y1TZRX-wfXOIYXWI5wWpKhJldTeeZ4IR"]',
+                  )
+                  text = text.replace(
+                      '// Two Science Show lower-secondary files are intentionally withheld because the names printed\n// on the certificates do not match the latest verified result names on the website.\n',
+                      '// Certificate names are authoritative; all verified Science Show lower-secondary files are published.\n',
+                  )
+              if text != original:
+                  path.write_text(text, encoding='utf-8')
+                  changed.append(path.as_posix())
+
+          print('Changed files:', *changed, sep='\n- ')
+
+      - name: Commit corrections
+        run: |
+          if git diff --quiet; then
+            echo "No changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app
+          git commit -m "Use certificate names as authoritative records"
+          git push
