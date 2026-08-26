@@ -3,6 +3,7 @@ import "@fontsource-variable/noto-sans-thai";
 import "@fontsource/pridi/500.css";
 import "@fontsource/pridi/600.css";
 import "./globals.css";
+import CertificateFetchPatch from "./certificate-fetch-patch";
 
 export const metadata: Metadata = {
   title: "ตำราลับแม่มด | สัปดาห์วิทยาศาสตร์ 2569",
@@ -27,7 +28,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="th">
-      <body>{children}</body>
+      <body><CertificateFetchPatch>{children}</CertificateFetchPatch></body>
     </html>
   );
 }
