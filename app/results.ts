@@ -123,7 +123,7 @@ export const resultDirectory: Record<string, ActivityResult> = {
       {
         award: "รางวัลชนะเลิศ",
         members: [
-          { name: "เด็กหญิงกันต์มล สุขนุ่ม" },
+          { name: "เด็กหญิงกันต์กมล สุขนุ่ม" },
           { name: "เด็กหญิงปภัสรา เครือแจ้" },
           { name: "เด็กหญิงปทิตตา เจิมขุนทด" },
         ],
@@ -132,7 +132,7 @@ export const resultDirectory: Record<string, ActivityResult> = {
         award: "รองชนะเลิศ อันดับ 1",
         members: [
           { name: "เด็กหญิงภาสินี คำไวโย" },
-          { name: "เด็กหญิงธัญยรัตน์ วงศ์อ่อน" },
+          { name: "เด็กหญิงธัญญรัตน์ วงศ์อ่อน" },
           { name: "เด็กหญิงพิมพกานต์ ยอดแสน" },
         ],
       },

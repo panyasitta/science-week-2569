@@ -42,8 +42,7 @@ const paintingLowerResult: ActivityResult = {
 };
 
 // File order follows award order and member order on each verified result entry.
-// Two Science Show lower-secondary files are intentionally withheld because the names printed
-// on the certificates do not match the latest verified result names on the website.
+// Certificate names are authoritative; all verified Science Show lower-secondary files are published.
 const driveFiles: FileMatrix = {
   "food-web": [
     ["1Y3Rx27iSt2PaNa9LZicet9AvF_lDW7nP", "1nJwpXqX0xrH5rz1kYqYAZswLX8ro89Aq"],
@@ -76,8 +75,8 @@ const driveFiles: FileMatrix = {
     ["1pq60nu592HouNTDhczr5nfw_XHgv6US8", "1Z8ai82DCLCxiZ7mSCrrAHTv63yROrSkc", "1dI6q6zS5rrqOV3PleGcqyUduGh_5_HD_"],
   ],
   "science-show-lower": [
-    [null, "1dNj-CiprvBRrw7n5PCz0uApPnwn4LJ5F", "14FKdJi0h__UAHGv95Uvzuso0qbuSUF56"],
-    ["1YLK5zCK8iRvhHOwkzw0AqHdhUWUWzpPJ", null, "1Y1TZRX-wfXOIYXWI5wWpKhJldTeeZ4IR"],
+    ["1ZUZWmlRY5ci1J26ldBu3llGsR1T4whGA", "1dNj-CiprvBRrw7n5PCz0uApPnwn4LJ5F", "14FKdJi0h__UAHGv95Uvzuso0qbuSUF56"],
+    ["1YLK5zCK8iRvhHOwkzw0AqHdhUWUWzpPJ", "1lG_38xcLI3KQla4bWWJNibLLuj4CPMMU", "1Y1TZRX-wfXOIYXWI5wWpKhJldTeeZ4IR"],
     ["1Z5zkrwcDKTZ63Jv3ufCAtcZP7xt2TptV", "1jid9bpMwvbqiBzL9gG32ewrzCpOF1-Lk", "1CGXjA0bbE1yg3U0vDBT5IDNTDcBKvnKT"],
   ],
   "science-show-upper": [
