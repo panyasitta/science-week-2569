@@ -1,6 +1,10 @@
 name: Back up GPT Site data to GitHub
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sync-site-to-github.yml'
   schedule:
     - cron: '*/5 * * * *'
   workflow_dispatch:
