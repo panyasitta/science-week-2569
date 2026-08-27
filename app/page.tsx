@@ -1,17 +1,36 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { competitions, type Competition, type CompetitionLevel } from "./competitions";
-import { participantDataUpdated, participantDirectory, type ActivityParticipants } from "./participants";
-import { resultAnnouncementNote, resultDirectory, type ActivityResult } from "./results";
+import type { Competition, CompetitionLevel } from "./competitions";
+import type { ActivityParticipants } from "./participants";
+import type { ActivityResult } from "./results";
+import { competitions, participantDataUpdated, participantDirectory, resultAnnouncementNote, resultDirectory, syncedCertificates } from "./synced-data";
 import type { PublicCertificate } from "./lib/certificate-model";
 import type { ActivityPayload } from "./lib/content-model";
-import { driveCertificates, mergeCertificates } from "./certificate-fetch-patch";
 
 type FilterValue = "all" | CompetitionLevel;
 type ModalView = "participants" | "results" | "rules";
 
 const CENTRAL_SITE_URL = "https://science-week-2569.chaiyarit-p94.chatgpt.site";
+
+const fallbackCertificates: PublicCertificate[] = syncedCertificates.map((certificate) => {
+  const activity = competitions.find((item) => item.id === certificate.activityId);
+  return {
+    id: certificate.id,
+    activityId: certificate.activityId,
+    activityTitle: activity?.shortTitle ?? certificate.activityId,
+    activityLevel: activity?.levelLabel ?? "",
+    recipientName: certificate.recipientName,
+    recipientRoom: certificate.recipientRoom,
+    teamName: certificate.teamName,
+    award: certificate.award,
+    fileName: certificate.fileName,
+    sizeBytes: certificate.sizeBytes,
+    createdAt: certificate.createdAt,
+    publishedAt: certificate.publishedAt,
+    downloadUrl: certificate.externalUrl ?? "#certificates",
+  };
+});
 
 const scheduleGroups = [
   { ids: ["science-show-lower", "science-show-upper"], label: "Science Show", note: "ม.ต้น และ ม.ปลาย", tone: "violet" },
@@ -318,7 +337,7 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<{ item: Competition; view: ModalView } | null>(null);
   const [liveActivities, setLiveActivities] = useState<Record<string, ActivityPayload> | null>(null);
-  const [certificates, setCertificates] = useState<PublicCertificate[]>(driveCertificates);
+  const [certificates, setCertificates] = useState<PublicCertificate[]>(fallbackCertificates);
   const [certificatesLoaded, setCertificatesLoaded] = useState(true);
   const [certificateQuery, setCertificateQuery] = useState("");
   const [certificateActivity, setCertificateActivity] = useState("all");
@@ -346,9 +365,9 @@ export default function Home() {
       : "/api/certificates";
     fetch(endpoint, { cache: "no-store", signal: controller.signal })
       .then((response) => response.ok ? response.json() : Promise.reject(new Error("certificate data unavailable")))
-      .then((data: { certificates?: PublicCertificate[] }) => setCertificates(mergeCertificates(Array.isArray(data.certificates) ? data.certificates : [])))
+      .then((data: { certificates?: PublicCertificate[] }) => setCertificates(Array.isArray(data.certificates) ? data.certificates : []))
       .catch((error: unknown) => {
-        if (!(error instanceof DOMException && error.name === "AbortError")) console.warn("ใช้รายการเกียรติบัตรสำรองจาก Google Drive", error);
+        if (!(error instanceof DOMException && error.name === "AbortError")) console.warn("ใช้รายการเกียรติบัตรสำรองจากชุดข้อมูลกลาง", error);
       })
       .finally(() => setCertificatesLoaded(true));
     return () => controller.abort();

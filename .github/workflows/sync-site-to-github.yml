@@ -1,0 +1,50 @@
+name: Back up GPT Site data to GitHub
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+  id-token: write
+
+concurrency:
+  group: science-week-2569-data-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Pull stable snapshot from GPT Site
+        run: node scripts/pull-sync-from-site.mjs
+
+      - name: Commit changes when needed
+        id: commit
+        run: |
+          if git diff --quiet -- data/sync-data.json; then
+            echo "Data is already synchronized"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/sync-data.json
+          git commit -m "chore(data): sync from GPT Site"
+          git push
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Confirm the new GitHub snapshot with GPT Site
+        if: steps.commit.outputs.changed == 'true'
+        run: GITHUB_SHA="$(git rev-parse HEAD)" node scripts/post-sync-to-site.mjs
+
+      - name: Rebuild GitHub Pages from the new fallback snapshot
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-pages.yml --ref main

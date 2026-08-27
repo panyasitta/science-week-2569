@@ -1,6 +1,7 @@
-import { competitions, type Competition } from "../competitions";
-import { participantDirectory, type ActivityParticipants } from "../participants";
-import { resultDirectory, type ActivityResult } from "../results";
+import type { Competition } from "../competitions";
+import type { ActivityParticipants } from "../participants";
+import type { ActivityResult } from "../results";
+import { competitions, participantDirectory, resultDirectory } from "../synced-data";
 
 export type ActivityPayload = {
   competition: Competition;
