@@ -3695,15 +3695,15 @@
             "members": [
               {
                 "name": "นางสาวณัฐวดี วงษ์สา",
-                "room": ""
+                "room": "ม.4 ห้อง SM4"
               },
               {
                 "name": "นางสาวเอื้องฟ้า แสงทอง",
-                "room": ""
+                "room": "ม.4 ห้อง SM4"
               },
               {
                 "name": "นางสาวจรรยพร สิทธิวงศ์",
-                "room": ""
+                "room": "ม.4 ห้อง SM4"
               }
             ]
           }
@@ -3718,13 +3718,16 @@
             "team": "ทีมชนะเลิศ",
             "members": [
               {
-                "name": "นางสาวณัฐวดี วงษ์สา"
+                "name": "นางสาวณัฐวดี วงษ์สา",
+                "room": "ม.4 ห้อง SM4"
               },
               {
-                "name": "นางสาวเอื้องฟ้า แสงทอง"
+                "name": "นางสาวเอื้องฟ้า แสงทอง",
+                "room": "ม.4 ห้อง SM4"
               },
               {
-                "name": "นางสาวจรรยพร สิทธิวงศ์"
+                "name": "นางสาวจรรยพร สิทธิวงศ์",
+                "room": "ม.4 ห้อง SM4"
               }
             ]
           },
@@ -5262,7 +5265,7 @@
       "id": "drive-1GQ4NwsFa38he_LWHvoGXe4uf9ZNXCB2-",
       "activityId": "science-show-upper",
       "recipientName": "นางสาวจรรยพร สิทธิวงศ์",
-      "recipientRoom": null,
+      "recipientRoom": "ม.4 ห้อง SM4",
       "teamName": null,
       "award": "รางวัลชนะเลิศ",
       "fileName": "เกียรติบัตร_นางสาวจรรยพร สิทธิวงศ์.jpg",
@@ -5313,7 +5316,7 @@
       "id": "drive-1MOf_G55mtgcNL1F-NG00vNDuXueE2-JS",
       "activityId": "science-show-upper",
       "recipientName": "นางสาวณัฐวดี วงษ์สา",
-      "recipientRoom": null,
+      "recipientRoom": "ม.4 ห้อง SM4",
       "teamName": null,
       "award": "รางวัลชนะเลิศ",
       "fileName": "เกียรติบัตร_นางสาวณัฐวดี วงษ์สา.jpg",
@@ -5398,7 +5401,7 @@
       "id": "drive-13V3nrsG4Gc7YQK3cTF-4ZfadcOwyFKO7",
       "activityId": "science-show-upper",
       "recipientName": "นางสาวเอื้องฟ้า แสงทอง",
-      "recipientRoom": null,
+      "recipientRoom": "ม.4 ห้อง SM4",
       "teamName": null,
       "award": "รางวัลชนะเลิศ",
       "fileName": "เกียรติบัตร_นางสาวเอื้องฟ้า แสงทอง.jpg",
