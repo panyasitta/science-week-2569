@@ -3,6 +3,11 @@ import { competitions } from "../../competitions";
 import { getRuntimeEnv, listPublishedCertificates } from "../../lib/activity-store";
 import type { PublicCertificate } from "../../lib/certificate-model";
 
+const certificateCategories: Record<string, { title: string; level: string }> = {
+  "event-staff": { title: "คณะดำเนินงานกิจกรรม", level: "นักเรียนและผู้ช่วยงาน" },
+  teachers: { title: "คณะครูผู้ดำเนินงาน", level: "ครูและบุคลากร" },
+};
+
 function corsHeaders(request: NextRequest): Record<string, string> {
   const allowedOrigin = getRuntimeEnv().PUBLIC_DATA_CORS_ORIGIN || "https://panyasitta.github.io";
   const requestOrigin = request.headers.get("origin");
@@ -21,11 +26,12 @@ export async function GET(request: NextRequest) {
     const activities = new Map(competitions.map((activity) => [activity.id, activity]));
     const certificates: PublicCertificate[] = (await listPublishedCertificates()).map((certificate) => {
       const activity = activities.get(certificate.activityId);
+      const category = certificateCategories[certificate.activityId];
       return {
         id: certificate.id,
         activityId: certificate.activityId,
-        activityTitle: activity?.shortTitle ?? certificate.activityId,
-        activityLevel: activity?.levelLabel ?? "",
+        activityTitle: activity?.shortTitle ?? category?.title ?? certificate.activityId,
+        activityLevel: activity?.levelLabel ?? category?.level ?? "",
         recipientName: certificate.recipientName,
         recipientRoom: certificate.recipientRoom,
         teamName: certificate.teamName,
