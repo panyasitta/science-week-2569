@@ -12,14 +12,19 @@ type FilterValue = "all" | CompetitionLevel;
 type ModalView = "participants" | "results" | "rules";
 
 const CENTRAL_SITE_URL = "https://science-week-2569.chaiyarit-p94.chatgpt.site";
+const certificateCategories: Record<string, { title: string; level: string }> = {
+  "event-staff": { title: "คณะดำเนินงานกิจกรรม", level: "นักเรียนและผู้ช่วยงาน" },
+  teachers: { title: "คณะครูผู้ดำเนินงาน", level: "ครูและบุคลากร" },
+};
 
 const fallbackCertificates: PublicCertificate[] = syncedCertificates.map((certificate) => {
   const activity = competitions.find((item) => item.id === certificate.activityId);
+  const category = certificateCategories[certificate.activityId];
   return {
     id: certificate.id,
     activityId: certificate.activityId,
-    activityTitle: activity?.shortTitle ?? certificate.activityId,
-    activityLevel: activity?.levelLabel ?? "",
+    activityTitle: activity?.shortTitle ?? category?.title ?? certificate.activityId,
+    activityLevel: activity?.levelLabel ?? category?.level ?? "",
     recipientName: certificate.recipientName,
     recipientRoom: certificate.recipientRoom,
     teamName: certificate.teamName,
