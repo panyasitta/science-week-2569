@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 
-const SITE_SYNC_URL = "https://science-week-2569.chaiyarit-p94.chatgpt.site/api/sync/github";
+const SITE_SYNC_URL = "https://science-week-2569.panyasitta-p94.chatgpt.site/api/sync/github";
 const OIDC_AUDIENCE = "science-week-2569-sync";
 
 function requiredEnvironment(name) {
