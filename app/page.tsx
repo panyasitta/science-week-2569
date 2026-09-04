@@ -11,7 +11,8 @@ import type { ActivityPayload } from "./lib/content-model";
 type FilterValue = "all" | CompetitionLevel;
 type ModalView = "participants" | "results" | "rules";
 
-const CENTRAL_SITE_URL = "https://science-week-2569.chaiyarit-p94.chatgpt.site";
+const CENTRAL_SITE_URL = "https://science-week-2569.panyasitta-p94.chatgpt.site";
+const LEGACY_SITE_HOST = "science-week-2569.chaiyarit-p94.chatgpt.site";
 const certificateCategories: Record<string, { title: string; level: string }> = {
   "event-staff": { title: "คณะดำเนินงานกิจกรรม", level: "นักเรียนและผู้ช่วยงาน" },
   teachers: { title: "คณะครูผู้ดำเนินงาน", level: "ครูและบุคลากร" },
@@ -346,6 +347,13 @@ export default function Home() {
   const [certificatesLoaded, setCertificatesLoaded] = useState(true);
   const [certificateQuery, setCertificateQuery] = useState("");
   const [certificateActivity, setCertificateActivity] = useState("all");
+
+  useEffect(() => {
+    if (window.location.hostname !== LEGACY_SITE_HOST) return;
+    const destination = new URL(window.location.href);
+    destination.host = new URL(CENTRAL_SITE_URL).host;
+    window.location.replace(destination.toString());
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
