@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 
-const SITE_SNAPSHOT_URL = "https://science-week-2569.chaiyarit-p94.chatgpt.site/api/sync/snapshot";
+const SITE_SNAPSHOT_URL = "https://science-week-2569.panyasitta-p94.chatgpt.site/api/sync/snapshot";
 const response = await fetch(SITE_SNAPSHOT_URL, { headers: { Accept: "application/json" } });
 if (!response.ok) throw new Error(`Site snapshot request failed (${response.status})`);
 const snapshot = await response.json();
