@@ -5967,6 +5967,23 @@
       "publishedBy": "Google Drive sync"
     },
     {
+      "id": "uploaded-apichat-3021",
+      "activityId": "water-rocket-lower",
+      "recipientName": "เด็กชายอภิชาต น่วมเจริญ",
+      "recipientRoom": "ม.3/3",
+      "teamName": "ทีมเพิ่มเติม 39",
+      "award": "เข้าร่วมการแข่งขัน",
+      "fileName": "เกียรติบัตร_เด็กชายอภิชาต น่วมเจริญ.pdf",
+      "contentType": "application/pdf",
+      "sizeBytes": 688630,
+      "externalUrl": "https://science-week-2569.panyasitta-p94.chatgpt.site/certificates/apichat-nuamcharoen.pdf",
+      "status": "published",
+      "createdAt": "2026-09-04T11:50:00.000Z",
+      "createdBy": "Codex upload",
+      "publishedAt": "2026-09-04T11:50:00.000Z",
+      "publishedBy": "Codex upload"
+    },
+    {
       "id": "bundle-water-rocket-lower-2701",
       "activityId": "water-rocket-lower",
       "recipientName": "เด็กชายอรรถเศรษฐ์ ลาวจันทร์",
@@ -6016,23 +6033,6 @@
       "createdBy": "Google Drive sync",
       "publishedAt": "2026-09-01T04:28:58.000Z",
       "publishedBy": "Google Drive sync"
-    },
-    {
-      "id": "uploaded-apichat-3021",
-      "activityId": "water-rocket-lower",
-      "recipientName": "เด็กชายอภิชาต น่วมเจริญ",
-      "recipientRoom": "ม.3/3",
-      "teamName": "ทีมเพิ่มเติม 39",
-      "award": "เข้าร่วมการแข่งขัน",
-      "fileName": "เกียรติบัตร_เด็กชายอภิชาต น่วมเจริญ.pdf",
-      "contentType": "application/pdf",
-      "sizeBytes": 688630,
-      "externalUrl": "https://science-week-2569.panyasitta-p94.chatgpt.site/certificates/apichat-nuamcharoen.pdf",
-      "status": "published",
-      "createdAt": "2026-09-04T11:50:00.000Z",
-      "createdBy": "Codex upload",
-      "publishedAt": "2026-09-04T11:50:00.000Z",
-      "publishedBy": "Codex upload"
     },
     {
       "id": "bundle-water-rocket-lower-2778",
